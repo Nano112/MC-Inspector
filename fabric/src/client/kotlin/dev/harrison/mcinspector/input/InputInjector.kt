@@ -12,6 +12,9 @@ import net.minecraft.client.Minecraft
  * All functions must run on the render thread.
  */
 object InputInjector {
+    /** When true, Minecraft.isWindowActive() reports true regardless of OS focus (see MinecraftWindowActiveMixin). */
+    @JvmField @Volatile var forceWindowActive: Boolean = false
+
     private val mc get() = Minecraft.getInstance()
     private val kb get() = mc.keyboardHandler as KeyboardHandlerAccessor
     private val mouse get() = mc.mouseHandler as MouseHandlerAccessor
@@ -62,6 +65,13 @@ object InputInjector {
 
     /** GUI-scaled coordinate -> logical mouse coordinate. */
     fun guiToMouse(g: Double): Double = g * mc.window.screenWidth.toDouble() / mc.window.guiScaledWidth.toDouble()
+
+    /** Names + down-state of every key mapping bound to [key] (diagnostics for agents). */
+    fun mappingsFor(key: Int): com.google.gson.JsonArray = com.google.gson.JsonArray().apply {
+        mc.options.keyMappings.filter { it.matches(net.minecraft.client.input.KeyEvent(key, 0, 0)) }.forEach { km ->
+            add(dev.harrison.mcinspector.mcp.obj { "name" to km.name; "down" to km.isDown })
+        }
+    }
 
     fun mouseX(): Double = mc.mouseHandler.xpos()
     fun mouseY(): Double = mc.mouseHandler.ypos()

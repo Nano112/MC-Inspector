@@ -4,6 +4,7 @@ import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import dev.harrison.mcinspector.mcp.obj
 import net.minecraft.client.gui.components.AbstractWidget
+import net.minecraft.client.gui.components.ObjectSelectionList
 import net.minecraft.client.gui.components.events.ContainerEventHandler
 import net.minecraft.client.gui.components.events.GuiEventListener
 import net.minecraft.client.gui.screens.Screen
@@ -41,6 +42,7 @@ object WidgetWalker {
         val rect = node.rectangle
         val text = when (node) {
             is AbstractWidget -> node.message.string
+            is ObjectSelectionList.Entry<*> -> runCatching { node.narration.string }.getOrDefault("")
             else -> ""
         }
         val (active, visible) = when (node) {

@@ -1,6 +1,7 @@
 package dev.harrison.mcinspector
 
 import dev.harrison.mcinspector.config.InspectorConfig
+import dev.harrison.mcinspector.input.InputInjector
 import dev.harrison.mcinspector.log.LogRingBuffer
 import dev.harrison.mcinspector.mcp.McpProtocol
 import dev.harrison.mcinspector.mcp.McpServer
@@ -31,6 +32,7 @@ object McInspectorClient : ClientModInitializer {
             LOGGER.info("[MCInspector] MCP server disabled by config")
             return
         }
+        InputInjector.forceWindowActive = true
         val registry = ToolRegistry()
         Tools.registerAll(registry, config, logs)
         val version = loader.getModContainer(MOD_ID).map { it.metadata.version.friendlyString }.orElse("dev")

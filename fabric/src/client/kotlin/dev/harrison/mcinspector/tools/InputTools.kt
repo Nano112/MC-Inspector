@@ -58,8 +58,8 @@ class HoldKeyTool : Tool {
     override val inputSchema = schema("key" to KEY_PROP, "modifiers" to MODS_PROP, required = listOf("key"))
     override fun call(args: JsonObject): ToolResult {
         val key = resolveKey(args); val mods = KeyNames.modifiers(args.strList("modifiers"))
-        RenderThread.run { InputInjector.keyDown(key, mods); InputInjector.keyMappingSet(key, true) }
-        return ToolResult.json(obj { "held" to args.require("key"); "code" to key })
+        val mappings = RenderThread.run { InputInjector.keyDown(key, mods); InputInjector.keyMappingSet(key, true); InputInjector.mappingsFor(key) }
+        return ToolResult.json(obj { "held" to args.require("key"); "code" to key; "mappings" to mappings })
     }
 }
 
@@ -69,8 +69,8 @@ class ReleaseKeyTool : Tool {
     override val inputSchema = schema("key" to KEY_PROP, "modifiers" to MODS_PROP, required = listOf("key"))
     override fun call(args: JsonObject): ToolResult {
         val key = resolveKey(args); val mods = KeyNames.modifiers(args.strList("modifiers"))
-        RenderThread.run { InputInjector.keyUp(key, mods); InputInjector.keyMappingSet(key, false) }
-        return ToolResult.json(obj { "released" to args.require("key"); "code" to key })
+        val mappings = RenderThread.run { InputInjector.keyUp(key, mods); InputInjector.keyMappingSet(key, false); InputInjector.mappingsFor(key) }
+        return ToolResult.json(obj { "released" to args.require("key"); "code" to key; "mappings" to mappings })
     }
 }
 
@@ -101,8 +101,12 @@ class MouseMoveTool : Tool {
     override fun call(args: JsonObject): ToolResult {
         val x = args.dbl("x")!!; val y = args.dbl("y")!!; val rel = args.bool("relative") ?: false
         val (nx, ny) = RenderThread.run {
-            val tx = if (rel) InputInjector.mouseX() + x else x
-            val ty = if (rel) InputInjector.mouseY() + y else y
+            val cx = InputInjector.mouseX(); val cy = InputInjector.mouseY()
+            // After grabMouse(), MC ignores the first move event (cursor re-centre). Send a zero-delta
+            // move first so a relative look delta is never swallowed.
+            if (rel && Minecraft.getInstance().mouseHandler.isMouseGrabbed) InputInjector.mouseMove(cx, cy)
+            val tx = if (rel) cx + x else x
+            val ty = if (rel) cy + y else y
             InputInjector.mouseMove(tx, ty); tx to ty
         }
         return ToolResult.json(obj { "x" to nx; "y" to ny })
