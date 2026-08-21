@@ -19,8 +19,10 @@ object InspectorPanels : PanelLibEntrypoint {
     override fun init(api: PanelLibApi) {
         val mod = api.registerMod("mcinspector", "Inspector", Icons.BUG)
         val status = mod.panel("mcp", "MCP Host", Icons.ROBOT) { renderStatus() }
+        val packets = mod.panel("packets", "Packets", Icons.NETWORK) { PacketsPanel.render() }
         mod.menuItem("Open tool catalog (docs)", Icons.EXTERNAL) { McInspectorClient.LOGGER.info("[MCInspector] see docs/mcp-tools.md") }
         mod.keybind("mcp_panel", GLFW.GLFW_KEY_I) { status.toggle() }
+        mod.keybind("packets_panel", GLFW.GLFW_KEY_O) { packets.toggle() }
     }
 
     private fun renderStatus() {

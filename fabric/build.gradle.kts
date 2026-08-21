@@ -113,3 +113,11 @@ tasks.withType<Test> {
     useJUnitPlatform()
     systemProperty("mcinspector.docsDir", rootProject.file("docs").absolutePath)
 }
+
+// Regenerate docs/mcp-tools.md from the tool registry (ToolDocsParityTest enforces it stays in sync).
+tasks.register<JavaExec>("generateToolDocs") {
+    group = "documentation"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("dev.harrison.mcinspector.docs.ToolDocsGeneratorKt")
+    args(rootProject.file("docs").absolutePath)
+}

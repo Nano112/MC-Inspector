@@ -1,3 +1,4 @@
 {
-  "key.mcinspector.mcp_panel": "Toggle MCP Host panel"
+  "key.mcinspector.mcp_panel": "Toggle MCP Host panel",
+  "key.mcinspector.packets_panel": "Toggle Packets panel"
 }
