@@ -33,6 +33,11 @@ claude mcp add --transport http mcinspector http://127.0.0.1:38271/mcp
 
 Tool catalog: [docs/mcp-tools.md](docs/mcp-tools.md) (regenerate with `./gradlew :fabric:1.21.11:generateToolDocs`). Manual checklist: [docs/mcp-smoke-test.md](docs/mcp-smoke-test.md).
 
+## Keys
+
+`K` toggle the panel-lib overlay · `I` MCP Host panel · `O` Packets panel (rebindable under Options → Controls → panel-lib).
+With the overlay open the game is **embedded** in the central area (panels sit beside it, not over it); toggle in Layout ▾.
+
 ## Notes for agents
 
 - `run_sequence` runs many tools in one call with `waitTicks` / `waitFor` — use it for menu flows and world loads.

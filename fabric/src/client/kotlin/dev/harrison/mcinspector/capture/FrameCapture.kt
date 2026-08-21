@@ -1,7 +1,6 @@
 package dev.harrison.mcinspector.capture
 
 import com.mojang.blaze3d.platform.NativeImage
-import net.minecraft.client.Minecraft
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL30
 import org.lwjgl.system.MemoryUtil
@@ -47,9 +46,12 @@ object FrameCapture {
     }
 
     private fun readFbo0(downscale: Int, out: Path): Result {
-        val win = Minecraft.getInstance().window
-        val w = win.width
-        val h = win.height
+        // Real framebuffer size from GLFW: Minecraft's Window may report a smaller, spoofed size while
+        // panel-lib embeds the game inside its layout, but FBO 0 is always the full window.
+        val fbw = IntArray(1); val fbh = IntArray(1)
+        org.lwjgl.glfw.GLFW.glfwGetFramebufferSize(dev.harrison.mcinspector.input.InputInjector.window(), fbw, fbh)
+        val w = fbw[0]
+        val h = fbh[0]
         val d = if (w % downscale == 0 && h % downscale == 0) downscale else 1
         val prevFbo = GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING)
         val prevPack = GL11.glGetInteger(GL11.GL_PACK_ALIGNMENT)

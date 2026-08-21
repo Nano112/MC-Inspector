@@ -71,7 +71,11 @@ object InputInjector {
     }
 
     /** Framebuffer pixels per logical (mouse) unit — 2.0 on Retina, 1.0 elsewhere. */
-    fun pixelRatio(): Double = mc.window.width.toDouble() / mc.window.screenWidth.toDouble()
+    fun pixelRatio(): Double {
+        val fbw = IntArray(1); val fbh = IntArray(1)
+        org.lwjgl.glfw.GLFW.glfwGetFramebufferSize(window(), fbw, fbh)   // real size even when panel-lib spoofs MC's
+        return fbw[0].toDouble() / mc.window.screenWidth.toDouble()
+    }
 
     /** GUI-scaled coordinate -> logical mouse coordinate. */
     fun guiToMouse(g: Double): Double = g * mc.window.screenWidth.toDouble() / mc.window.guiScaledWidth.toDouble()

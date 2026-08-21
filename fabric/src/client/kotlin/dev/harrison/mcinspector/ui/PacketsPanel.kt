@@ -46,11 +46,8 @@ object PacketsPanel {
         if (Widgets.toggleButton("${Icons.ARROW_UP} OUT", showOut)) showOut = !showOut
         ImGui.sameLine()
         if (Widgets.toggleButton(Icons.ARROW_DOWN + " auto", autoscroll)) autoscroll = !autoscroll
-        ImGui.sameLine()
-        Widgets.textField("##filter", filter, "filter type (regex)", width = -1f)
+        Widgets.textField("##filter", filter, "filter type (regex), e.g. chat|move_player", width = -1f)
         updateFilter()
-        ImGui.sameLine(0f, 0f)
-        Widgets.faint("")
         ImGui.spacing()
         Widgets.faint("${store.size()} buffered · ${store.totalSeen} seen · ${store.dropped} dropped" + if (store.excludes.isNotEmpty()) " · ${store.excludes.size} excludes" else "")
         if (filterError) Widgets.statusText("invalid regex", Widgets.Tone.DANGER)
