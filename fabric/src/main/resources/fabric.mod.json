@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "mcinspector",
+  "version": "${version}",
+  "name": "MC Inspector",
+  "description": "Packet inspector and MCP host for agent-driven game debugging",
+  "authors": ["Harrison"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      { "adapter": "kotlin", "value": "dev.harrison.mcinspector.McInspectorClient" }
+    ]
+  },
+  "mixins": [
+    { "config": "mcinspector.client.mixins.json", "environment": "client" }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_min}",
+    "fabric-api": "*",
+    "fabric-language-kotlin": ">=${flk_min}",
+    "minecraft": "${minecraft_compat}",
+    "java": ">=${java_version}"
+  }
+}
