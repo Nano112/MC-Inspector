@@ -1,0 +1,198 @@
+# MC-Inspector MCP tools
+
+Generated from `tools/list` of the running server (22 tools). Connect with `.mcp.json` (already in this repo) or
+`claude mcp add --transport http mcinspector http://127.0.0.1:38271/mcp`.
+
+## Coordinate spaces
+
+- **Image pixels** — what `screenshot` returns. Multiply by its `mouseScale` to get mouse coordinates.
+- **Mouse coordinates** — logical window units used by `mouse_move`, `mouse_click`, `mouse_scroll` (`mouseWidth`/`mouseHeight` in `get_state`).
+- **GUI coordinates** — what `list_widgets` reports; multiply by its `guiToMouse` to get mouse coordinates. Prefer `click_widget`.
+
+## Typical loops
+
+- Menus: `get_screen` → `list_widgets` → `click_widget {text}` / `set_text_field` / `type_text` → `screenshot`.
+- In-world: `hold_key w` → `wait_ticks 40` → `release_key w`; `mouse_move {relative:true}` to look; `press_key e` for inventory; `run_command`.
+- Debugging: `read_logs {filter, level}` after any step; `get_state` to confirm screen / position.
+
+### screenshot
+
+Capture the game window as a PNG image. `scale` (0.1-1, default 0.5) downsamples by an integer factor to keep the image small. The text block reports `mouseScale`: multiply image pixel coordinates by it to get the coordinates that mouse_move/mouse_click expect.
+
+| arg | type | description |
+|---|---|---|
+| `scale` | number | Approximate scale factor 0.1-1.0 (rounded to 1/n). Default 0.5. |
+
+### get_state
+
+Snapshot of client state: current screen, player position/rotation/health, server, fps, window size, gui scale, whether the mouse is grabbed (in-world look mode).
+
+_No arguments._
+
+### read_logs
+
+Read recent game log lines (all mods + Minecraft) from an in-memory ring buffer. Filter by regex and/or level.
+
+| arg | type | description |
+|---|---|---|
+| `lines` | integer | How many of the most recent matching lines to return (1-1000, default 100). |
+| `filter` | string | Regex applied to the formatted line (case-insensitive). |
+| `level` | string (TRACE, DEBUG, INFO, WARN, ERROR, FATAL) | Exact level filter |
+
+### list_mods
+
+List loaded Fabric mods (id, version, name).
+
+_No arguments._
+
+### press_key
+
+Press and release a key (goes through the real input path, so it works in menus and in-world). In-world, the matching key binding is also engaged for `holdTicks` ticks so movement/actions happen.
+
+| arg | type | description |
+|---|---|---|
+| `key` (required) | string | Key name: letters/digits, escape, enter, space, tab, backspace, f1-f25, up/down/left/right, left_shift, left_control, left_alt, or key.keyboard.* ids. |
+| `modifiers` | array | Modifier keys held: shift, ctrl, alt, super. |
+| `holdTicks` | integer | Ticks to hold before release (default 1, 20 ticks = 1 s). |
+
+### hold_key
+
+Hold a key down until `release_key` is called (use for walking: hold_key w, wait_ticks 40, release_key w).
+
+| arg | type | description |
+|---|---|---|
+| `key` (required) | string | Key name: letters/digits, escape, enter, space, tab, backspace, f1-f25, up/down/left/right, left_shift, left_control, left_alt, or key.keyboard.* ids. |
+| `modifiers` | array | Modifier keys held: shift, ctrl, alt, super. |
+
+### release_key
+
+Release a key previously held with `hold_key`.
+
+| arg | type | description |
+|---|---|---|
+| `key` (required) | string | Key name: letters/digits, escape, enter, space, tab, backspace, f1-f25, up/down/left/right, left_shift, left_control, left_alt, or key.keyboard.* ids. |
+| `modifiers` | array | Modifier keys held: shift, ctrl, alt, super. |
+
+### type_text
+
+Type text into the focused text field / chat (character events). '\n' presses Enter, '\t' presses Tab.
+
+| arg | type | description |
+|---|---|---|
+| `text` (required) | string | Text to type. |
+
+### mouse_move
+
+Move the mouse to mouse coordinates (logical window units; see `mouseScale` from screenshot, or `mouseWidth`/`mouseHeight` from get_state) or by a delta with relative=true. In-world with the mouse grabbed, a relative move turns the camera.
+
+| arg | type | description |
+|---|---|---|
+| `x` (required) | number | Mouse X (or delta when relative). |
+| `y` (required) | number | Mouse Y (or delta when relative). |
+| `relative` | boolean | Treat x/y as a delta from the current position (default false). |
+
+### mouse_click
+
+Click a mouse button, optionally moving to mouse coordinates (x, y) first (image pixel * mouseScale). Works on menus (buttons, lists) and in-world (attack/use).
+
+| arg | type | description |
+|---|---|---|
+| `x` | number | Mouse X to move to before clicking. |
+| `y` | number | Mouse Y. |
+| `button` | string | left (default), right, middle. |
+| `double` | boolean | Double-click (default false). |
+| `holdTicks` | integer | Ticks between press and release (default 1). |
+
+### mouse_scroll
+
+Scroll the mouse wheel (dy > 0 = up), optionally at mouse coordinates (x, y).
+
+| arg | type | description |
+|---|---|---|
+| `dy` (required) | number | Vertical scroll amount in wheel notches. |
+| `dx` | number | Horizontal scroll (default 0). |
+| `x` | number | Mouse X to move to first. |
+| `y` | number | Mouse Y. |
+
+### get_screen
+
+Describe the currently open screen (menu), or null when in-world with no menu.
+
+_No arguments._
+
+### list_widgets
+
+List every widget on the open screen with its label and GUI-scaled bounds. Multiply by `guiToMouse` to get mouse coordinates for mouse_* tools. Prefer `click_widget` over computing coordinates yourself.
+
+_No arguments._
+
+### click_widget
+
+Click a widget on the open screen by label text or index (from list_widgets). Moves the mouse to its centre and clicks through the real input path.
+
+| arg | type | description |
+|---|---|---|
+| `index` | integer | Widget index from `list_widgets`. |
+| `text` | string | Widget label to match (exact, case-insensitive; falls back to contains). |
+| `button` | string | left (default) / right / middle. |
+
+### set_text_field
+
+Set the value of a text field (EditBox) on the open screen, selected by index or by its label/hint text; with no selector, the first text field is used.
+
+| arg | type | description |
+|---|---|---|
+| `index` | integer | Widget index from `list_widgets`. |
+| `text` | string | Widget label to match (exact, case-insensitive; falls back to contains). |
+| `value` (required) | string | New text value. |
+
+### open_screen
+
+Open a vanilla screen directly: title, pause, options, controls, multiplayer, singleplayer, inventory (in-world), chat (in-world).
+
+| arg | type | description |
+|---|---|---|
+| `id` (required) | string (title, pause, options, controls, multiplayer, singleplayer, inventory, chat) | Screen id |
+
+### close_screen
+
+Close the current screen (setScreen(null)). In-world this returns to gameplay and grabs the mouse.
+
+_No arguments._
+
+### run_command
+
+Send a chat message or command to the server you're connected to. Text starting with '/' is sent as a command, otherwise as chat.
+
+| arg | type | description |
+|---|---|---|
+| `command` (required) | string | e.g. "/tp 0 100 0" or "hello" |
+
+### connect_server
+
+Connect to a multiplayer server by address (host[:port]). Returns immediately; poll get_state until inWorld is true.
+
+| arg | type | description |
+|---|---|---|
+| `address` (required) | string | e.g. localhost:25565 |
+
+### disconnect
+
+Leave the current server or singleplayer world and return to the title screen.
+
+_No arguments._
+
+### list_servers
+
+List the saved multiplayer server entries.
+
+_No arguments._
+
+### wait_ticks
+
+Wait for N client ticks (20 ticks = 1 second, max 1200) so animations, screen transitions or held keys can play out.
+
+| arg | type | description |
+|---|---|---|
+| `ticks` (required) | integer | 1-1200 |
+

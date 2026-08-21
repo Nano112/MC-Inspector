@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "mcinspector": {
+      "type": "http",
+      "url": "http://127.0.0.1:38271/mcp"
+    }
+  }
+}
