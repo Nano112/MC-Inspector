@@ -20,6 +20,7 @@ base {
 
 repositories {
     maven("https://maven.fabricmc.net/") { name = "Fabric" }
+    mavenLocal() // panel-lib (../panel-lib: ./gradlew :fabric:<ver>:publishToMavenLocal)
 }
 
 dependencies {
@@ -33,6 +34,11 @@ dependencies {
     add(modImpl, "net.fabricmc:fabric-loader:$loaderVersion")
     add(modImpl, "net.fabricmc.fabric-api:fabric-api:$fabricApiVersion")
     add(modImpl, "net.fabricmc:fabric-language-kotlin:$flkVersion")
+
+    // Shared ImGui overlay. Bundled so users only install MC-Inspector.
+    val panelLibVersion: String = property("panellib_version") as String
+    add(modImpl, "dev.harrison:panel-lib-mc$mcVersion:$panelLibVersion")
+    include("dev.harrison:panel-lib-mc$mcVersion:$panelLibVersion")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
     testImplementation("org.jetbrains.kotlin:kotlin-test:2.4.0")

@@ -15,5 +15,7 @@ object Tools {
         reg.register(GetScreenTool(), ListWidgetsTool(), ClickWidgetTool(), SetTextFieldTool(), OpenScreenTool(), CloseScreenTool())
         // world / server
         reg.register(CommandTool(), ConnectServerTool(), DisconnectTool(), ListServersTool(), WaitTool())
+        // composition
+        reg.register(SequenceTool(reg))
     }
 }

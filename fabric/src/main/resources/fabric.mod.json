@@ -10,6 +10,9 @@
   "entrypoints": {
     "client": [
       { "adapter": "kotlin", "value": "dev.harrison.mcinspector.McInspectorClient" }
+    ],
+    "panellib": [
+      { "adapter": "kotlin", "value": "dev.harrison.mcinspector.ui.InspectorPanels" }
     ]
   },
   "mixins": [
@@ -19,6 +22,7 @@
     "fabricloader": ">=${loader_min}",
     "fabric-api": "*",
     "fabric-language-kotlin": ">=${flk_min}",
+    "panellib": "*",
     "minecraft": "${minecraft_compat}",
     "java": ">=${java_version}"
   }

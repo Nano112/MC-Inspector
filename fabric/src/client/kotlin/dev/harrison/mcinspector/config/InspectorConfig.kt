@@ -11,6 +11,8 @@ data class InspectorConfig(
     val authToken: String? = null,
     val screenshotScale: Double = 0.5,
     val enabled: Boolean = true,
+    /** Lock/hide the OS cursor in-world like vanilla. Off by default so a human sharing the machine keeps their mouse. */
+    val lockCursor: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_PORT = 38271
@@ -37,6 +39,7 @@ data class InspectorConfig(
                 authToken = o.get("auth_token")?.takeUnless { it.isJsonNull }?.asString?.takeIf { it.isNotBlank() },
                 screenshotScale = o.get("screenshot_scale")?.takeUnless { it.isJsonNull }?.asDouble ?: d.screenshotScale,
                 enabled = o.get("enabled")?.takeUnless { it.isJsonNull }?.asBoolean ?: d.enabled,
+                lockCursor = o.get("lock_cursor")?.takeUnless { it.isJsonNull }?.asBoolean ?: d.lockCursor,
             )
         }
     }
@@ -52,5 +55,6 @@ data class InspectorConfig(
         addProperty("auth_token", authToken)
         addProperty("screenshot_scale", screenshotScale)
         addProperty("enabled", enabled)
+        addProperty("lock_cursor", lockCursor)
     })
 }

@@ -1,6 +1,6 @@
 # MC-Inspector MCP tools
 
-Generated from `tools/list` of the running server (22 tools). Connect with `.mcp.json` (already in this repo) or
+Generated from `tools/list` of the running server (23 tools). Connect with `.mcp.json` (already in this repo) or
 `claude mcp add --transport http mcinspector http://127.0.0.1:38271/mcp`.
 
 ## Coordinate spaces
@@ -11,8 +11,10 @@ Generated from `tools/list` of the running server (22 tools). Connect with `.mcp
 
 ## Typical loops
 
+- One call for a whole flow: `run_sequence` with `waitFor` (see its description).
 - Menus: `get_screen` → `list_widgets` → `click_widget {text}` / `set_text_field` / `type_text` → `screenshot`.
 - In-world: `hold_key w` → `wait_ticks 40` → `release_key w`; `mouse_move {relative:true}` to look; `press_key e` for inventory; `run_command`.
+- panel-lib overlay: `press_key k` toggles it; `get_state.panellib` lists open panels; `mouse_click` on ImGui widgets (the tool settles 2 ticks after moving so ImGui claims the click).
 - Debugging: `read_logs {filter, level}` after any step; `get_state` to confirm screen / position.
 
 ### screenshot
@@ -195,4 +197,20 @@ Wait for N client ticks (20 ticks = 1 second, max 1200) so animations, screen tr
 | arg | type | description |
 |---|---|---|
 | `ticks` (required) | integer | 1-1200 |
+
+### run_sequence
+
+Run a list of tool calls sequentially in ONE request. Each step: {"tool": name, "args": {...},
+"waitTicks": n, "waitFor": {...}}. After a step, `waitTicks` sleeps N ticks (20 = 1 s) and/or `waitFor` polls until a
+condition holds: {"inWorld": true|false, "screen": "<SimpleName>"|"none", "overlayOpen": true|false, "timeoutTicks": 600}.
+Stops at the first failing step (or timeout) unless "continueOnError": true. Returns each step's text result; image
+results (screenshot) are attached as image blocks in order. Example:
+[{"tool":"click_widget","args":{"text":"Singleplayer"}},{"tool":"click_widget","args":{"index":3}},
+ {"tool":"click_widget","args":{"text":"Play Selected World"},"waitFor":{"inWorld":true,"screen":"none","timeoutTicks":1200}},
+ {"tool":"wait_ticks","args":{"ticks":40}},{"tool":"screenshot"}]
+
+| arg | type | description |
+|---|---|---|
+| `steps` (required) | array | Ordered steps; see description for the step object shape. |
+| `continueOnError` | boolean | Keep going after a failed step (default false). |
 

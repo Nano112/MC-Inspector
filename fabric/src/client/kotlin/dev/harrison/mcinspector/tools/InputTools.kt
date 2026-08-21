@@ -125,8 +125,13 @@ class MouseClickTool : Tool {
         val dbl = args.bool("double") ?: false
         val hold = (args.int("holdTicks") ?: 1).coerceIn(1, 1200)
         val x = args.dbl("x"); val y = args.dbl("y")
+        if (x != null && y != null) {
+            // Move first and let a couple of frames render: overlays (ImGui) decide whether they want the
+            // click from the PREVIOUS frame's hover state, exactly like a human moving then clicking.
+            RenderThread.run { InputInjector.mouseMove(x, y) }
+            TickScheduler.awaitTicks(2)
+        }
         val pos = RenderThread.run {
-            if (x != null && y != null) InputInjector.mouseMove(x, y)
             InputInjector.mouseDown(button)
             TickScheduler.after(hold) { InputInjector.mouseUp(button) }
             if (dbl) TickScheduler.after(hold + 2) { InputInjector.mouseDown(button); TickScheduler.after(hold) { InputInjector.mouseUp(button) } }

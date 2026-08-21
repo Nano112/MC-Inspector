@@ -2,6 +2,7 @@ package dev.harrison.mcinspector.tools
 
 import dev.harrison.mcinspector.compat.Compat
 import com.google.gson.JsonObject
+import dev.harrison.mcinspector.capture.FrameCapture
 import dev.harrison.mcinspector.config.InspectorConfig
 import dev.harrison.mcinspector.input.InputInjector
 import dev.harrison.mcinspector.mcp.RenderThread
@@ -12,10 +13,8 @@ import dev.harrison.mcinspector.mcp.obj
 import dev.harrison.mcinspector.mcp.prop
 import dev.harrison.mcinspector.mcp.schema
 import net.minecraft.client.Minecraft
-import net.minecraft.client.Screenshot
 import java.nio.file.Files
 import java.util.Base64
-import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
@@ -35,36 +34,24 @@ class ScreenshotTool(private val cfg: InspectorConfig) : Tool {
         val scale = (args.dbl("scale") ?: cfg.screenshotScale).coerceIn(0.05, 1.0)
         val downscale = max(1, (1.0 / scale).roundToInt())
         val tmp = Files.createTempFile("mcinspector-shot", ".png")
-        // The GPU readback completes on a LATER frame (copyTextureToBuffer callback),
-        // so kick it off on the render thread and await the future from this thread.
-        val done = CompletableFuture<JsonObject>()
-        RenderThread.run {
+        // Captured from FBO 0 right before the buffer swap (PresentCaptureMixin) so overlays drawn at
+        // present time (panel-lib's ImGui) are included. Fulfilled on the render thread on the next frame.
+        val future = FrameCapture.request(downscale, tmp)
+        val r = try {
+            future.get(15, TimeUnit.SECONDS)
+        } catch (e: ExecutionException) { throw e.cause ?: e }
+        catch (e: TimeoutException) { throw IllegalStateException("frame capture never completed (is the game rendering?)") }
+        val meta = RenderThread.run {
             val mc = Minecraft.getInstance()
-            val target = Compat.mainRenderTarget()
-            // takeScreenshot requires width/height divisible by the factor; fall back to 1 if not.
-            val d = if (target.width % downscale == 0 && target.height % downscale == 0) downscale else 1
             val win = mc.window
-            val meta = obj {
-                "downscale" to d
-                "mouseScale" to d / InputInjector.pixelRatio()
+            obj {
+                "width" to r.width; "height" to r.height; "downscale" to r.downscale
+                "mouseScale" to r.downscale / InputInjector.pixelRatio()
                 "mouseWidth" to win.screenWidth; "mouseHeight" to win.screenHeight
                 "framebufferWidth" to win.width; "framebufferHeight" to win.height; "guiScale" to win.guiScale
                 "screen" to Compat.screen()?.javaClass?.simpleName
             }
-            try {
-                Screenshot.takeScreenshot(target, d) { img ->
-                    try {
-                        meta.addProperty("width", img.width); meta.addProperty("height", img.height)
-                        img.writeToFile(tmp)
-                        done.complete(meta)
-                    } catch (t: Throwable) { done.completeExceptionally(t) } finally { img.close() }
-                }
-            } catch (t: Throwable) { done.completeExceptionally(t) }
         }
-        val meta = try {
-            done.get(15, TimeUnit.SECONDS)
-        } catch (e: ExecutionException) { throw e.cause ?: e }
-        catch (e: TimeoutException) { throw IllegalStateException("screenshot readback never completed (is the game rendering?)") }
         val bytes = Files.readAllBytes(tmp)
         Files.deleteIfExists(tmp)
         return ToolResult.image(Base64.getEncoder().encodeToString(bytes), meta)

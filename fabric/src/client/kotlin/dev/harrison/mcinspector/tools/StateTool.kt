@@ -37,6 +37,14 @@ class StateTool : Tool {
                     "name" to it.gameProfile.name
                 }
             }
+            "panellib" to runCatching {
+                val api = dev.harrison.panellib.PanelLib.api()
+                obj {
+                    "overlayOpen" to api.isOverlayOpen; "focused" to api.isOverlayFocused
+                    "openPanels" to com.google.gson.JsonArray().apply { api.mods.flatMap { it.panels }.filter { it.isOpen }.forEach { add(it.id) } }
+                    "panels" to com.google.gson.JsonArray().apply { api.mods.flatMap { it.panels }.forEach { add(it.id) } }
+                }
+            }.getOrNull()
             "server" to mc.currentServer?.let { obj { "name" to it.name; "address" to it.ip } }
             "singleplayer" to mc.isLocalServer
             "fps" to mc.fps

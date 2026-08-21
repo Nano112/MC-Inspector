@@ -90,6 +90,7 @@ class McpProtocol(
         val tool = registry.get(name) ?: return ToolResult.error("Unknown tool: $name").toJson()
         val args = params.get("arguments")?.takeIf { it.isJsonObject }?.asJsonObject ?: JsonObject()
         val started = System.nanoTime()
+        McpStats.record(name)
         val result = try {
             tool.call(args)
         } catch (t: Throwable) {

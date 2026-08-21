@@ -14,6 +14,8 @@ import net.minecraft.client.Minecraft
 object InputInjector {
     /** When true, Minecraft.isWindowActive() reports true regardless of OS focus (see MinecraftWindowActiveMixin). */
     @JvmField @Volatile var forceWindowActive: Boolean = false
+    /** When false (default while hosting), MC never locks/hides the OS cursor (see MouseGrabMixin). */
+    @JvmField @Volatile var lockCursor: Boolean = true
 
     private val mc get() = Minecraft.getInstance()
     private val kb get() = mc.keyboardHandler as KeyboardHandlerAccessor

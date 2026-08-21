@@ -5,6 +5,7 @@ import dev.harrison.mcinspector.input.InputInjector
 import dev.harrison.mcinspector.log.LogRingBuffer
 import dev.harrison.mcinspector.mcp.McpProtocol
 import dev.harrison.mcinspector.mcp.McpServer
+import dev.harrison.mcinspector.mcp.McpStats
 import dev.harrison.mcinspector.mcp.TickScheduler
 import dev.harrison.mcinspector.mcp.ToolRegistry
 import dev.harrison.mcinspector.tools.Tools
@@ -33,6 +34,7 @@ object McInspectorClient : ClientModInitializer {
             return
         }
         InputInjector.forceWindowActive = true
+        InputInjector.lockCursor = config.lockCursor
         val registry = ToolRegistry()
         Tools.registerAll(registry, config, logs)
         val version = loader.getModContainer(MOD_ID).map { it.metadata.version.friendlyString }.orElse("dev")
@@ -40,6 +42,7 @@ object McInspectorClient : ClientModInitializer {
         try {
             val port = mcp.start()
             server = mcp
+            McpStats.boundPort = port
             val portFile = loader.gameDir.resolve(".mcp-port")
             Files.writeString(portFile, port.toString())
             LOGGER.info("[MCInspector] MCP server listening on http://127.0.0.1:$port/mcp ({} tools)", registry.size)

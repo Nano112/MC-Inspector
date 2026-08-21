@@ -6,7 +6,9 @@
   "client": [
     "KeyboardHandlerAccessor",
     "MinecraftWindowActiveMixin",
-    "MouseHandlerAccessor"
+    "MouseGrabMixin",
+    "MouseHandlerAccessor",
+    "PresentCaptureMixin"
   ],
   "injectors": {
     "defaultRequire": 1
