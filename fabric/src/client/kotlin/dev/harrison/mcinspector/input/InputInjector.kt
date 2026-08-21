@@ -19,7 +19,13 @@ object InputInjector {
     private val kb get() = mc.keyboardHandler as KeyboardHandlerAccessor
     private val mouse get() = mc.mouseHandler as MouseHandlerAccessor
 
-    fun window(): Long = mc.window.handle()
+    fun window(): Long {
+        //? if >=1.21.9 {
+        return mc.window.handle()
+        //?} else {
+        /*return mc.window.getWindow()
+        *///?}
+    }
 
     fun keyDown(key: Int, mods: Int = 0) = keyAction(key, KeyNames.PRESS, mods)
     fun keyUp(key: Int, mods: Int = 0) = keyAction(key, KeyNames.RELEASE, mods)
@@ -33,7 +39,9 @@ object InputInjector {
     }
 
     fun char(codepoint: Int, mods: Int = 0) {
-        //? if >=1.21.9 {
+        //? if >=26.1 {
+        /*kb.`mcinspector$charTyped`(window(), net.minecraft.client.input.CharacterEvent(codepoint))
+        *///?} elif >=1.21.9 {
         kb.`mcinspector$charTyped`(window(), net.minecraft.client.input.CharacterEvent(codepoint, mods))
         //?} else {
         /*kb.`mcinspector$charTyped`(window(), codepoint, mods)
@@ -68,7 +76,13 @@ object InputInjector {
 
     /** Names + down-state of every key mapping bound to [key] (diagnostics for agents). */
     fun mappingsFor(key: Int): com.google.gson.JsonArray = com.google.gson.JsonArray().apply {
-        mc.options.keyMappings.filter { it.matches(net.minecraft.client.input.KeyEvent(key, 0, 0)) }.forEach { km ->
+        mc.options.keyMappings.filter { km ->
+            //? if >=1.21.9 {
+            km.matches(net.minecraft.client.input.KeyEvent(key, 0, 0))
+            //?} else {
+            /*km.matches(key, 0)
+            *///?}
+        }.forEach { km ->
             add(dev.harrison.mcinspector.mcp.obj { "name" to km.name; "down" to km.isDown })
         }
     }

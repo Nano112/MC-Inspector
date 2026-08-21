@@ -1,5 +1,6 @@
 package dev.harrison.mcinspector.tools
 
+import dev.harrison.mcinspector.compat.Compat
 import com.google.gson.JsonObject
 import dev.harrison.mcinspector.input.InputInjector
 import dev.harrison.mcinspector.input.KeyNames
@@ -34,7 +35,7 @@ private val TARGET_PROPS = arrayOf(
     "text" to prop("string", "Widget label to match (exact, case-insensitive; falls back to contains)."),
 )
 
-private fun currentScreenOrFail() = Minecraft.getInstance().screen ?: throw IllegalStateException("no screen is open (in-world HUD). Use open_screen or press_key escape first.")
+private fun currentScreenOrFail() = Compat.screen() ?: throw IllegalStateException("no screen is open (in-world HUD). Use open_screen or press_key escape first.")
 
 private fun findWidget(args: JsonObject): Pair<WidgetInfo, List<WidgetInfo>> {
     val screen = currentScreenOrFail()
@@ -50,7 +51,7 @@ class GetScreenTool : Tool {
     override val description = "Describe the currently open screen (menu), or null when in-world with no menu."
     override val inputSchema = schema()
     override fun call(args: JsonObject): ToolResult = ToolResult.json(RenderThread.run {
-        val s = Minecraft.getInstance().screen
+        val s = Compat.screen()
         if (s == null) com.google.gson.JsonNull.INSTANCE else obj {
             "className" to s.javaClass.name; "title" to s.title.string; "width" to s.width; "height" to s.height
             "widgets" to WidgetWalker.walk(s).size
@@ -86,7 +87,7 @@ class ClickWidgetTool : Tool {
             w
         }
         TickScheduler.awaitTicks(2)
-        return ToolResult.json(obj { "clicked" to clicked.toJson(); "screenAfter" to RenderThread.run { Minecraft.getInstance().screen?.javaClass?.simpleName } })
+        return ToolResult.json(obj { "clicked" to clicked.toJson(); "screenAfter" to RenderThread.run { Compat.screen()?.javaClass?.simpleName } })
     }
 }
 
@@ -126,19 +127,28 @@ class OpenScreenTool : Tool {
         val id = args.require("id")
         val opened = RenderThread.run {
             val mc = Minecraft.getInstance()
-            val parent = mc.screen
+            val parent = Compat.screen()
             val screen = when (id) {
                 "title" -> TitleScreen()
                 "pause" -> PauseScreen(true)
+                //? if >=26.1 {
+                /*"options" -> OptionsScreen(parent ?: TitleScreen(), mc.options, mc.level != null)
+                *///?} else {
                 "options" -> OptionsScreen(parent ?: TitleScreen(), mc.options)
+                //?}
                 "controls" -> ControlsScreen(parent ?: TitleScreen(), mc.options)
                 "multiplayer" -> JoinMultiplayerScreen(parent ?: TitleScreen())
                 "singleplayer" -> SelectWorldScreen(parent ?: TitleScreen())
                 "inventory" -> InventoryScreen(mc.player ?: throw IllegalStateException("not in a world"))
-                "chat" -> if (mc.player != null) ChatScreen("", false) else throw IllegalStateException("not in a world")
+                "chat" -> if (mc.player == null) throw IllegalStateException("not in a world") else
+                    //? if >=1.21.9 {
+                    ChatScreen("", false)
+                    //?} else {
+                    /*ChatScreen("")
+                    *///?}
                 else -> throw IllegalArgumentException("unknown screen id '$id'")
             }
-            mc.setScreen(screen)
+            Compat.setScreen(screen)
             screen.javaClass.simpleName
         }
         TickScheduler.awaitTicks(1)
@@ -151,8 +161,8 @@ class CloseScreenTool : Tool {
     override val description = "Close the current screen (setScreen(null)). In-world this returns to gameplay and grabs the mouse."
     override val inputSchema = schema()
     override fun call(args: JsonObject): ToolResult {
-        val before = RenderThread.run { val mc = Minecraft.getInstance(); val b = mc.screen?.javaClass?.simpleName; mc.setScreen(null); b }
+        val before = RenderThread.run { val mc = Minecraft.getInstance(); val b = Compat.screen()?.javaClass?.simpleName; Compat.setScreen(null); b }
         TickScheduler.awaitTicks(1)
-        return ToolResult.json(obj { "closed" to before; "screenAfter" to RenderThread.run { Minecraft.getInstance().screen?.javaClass?.simpleName } })
+        return ToolResult.json(obj { "closed" to before; "screenAfter" to RenderThread.run { Compat.screen()?.javaClass?.simpleName } })
     }
 }

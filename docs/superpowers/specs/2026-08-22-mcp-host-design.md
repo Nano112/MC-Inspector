@@ -1,7 +1,7 @@
 # MC-Inspector — MCP Host design (sub-project 1 of 3)
 
 Date: 2026-08-22
-Status: approved in brainstorm (verbal), building
+Status: implemented 2026-08-22 (all 6 versions build; live smoke test passed on 1.21.11)
 
 ## Program overview
 

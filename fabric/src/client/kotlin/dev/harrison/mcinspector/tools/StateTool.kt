@@ -1,5 +1,6 @@
 package dev.harrison.mcinspector.tools
 
+import dev.harrison.mcinspector.compat.Compat
 import com.google.gson.JsonObject
 import dev.harrison.mcinspector.mcp.RenderThread
 import dev.harrison.mcinspector.mcp.TickScheduler
@@ -19,15 +20,19 @@ class StateTool : Tool {
         val win = mc.window
         val p = mc.player
         obj {
-            "screen" to mc.screen?.javaClass?.simpleName
-            "screenTitle" to mc.screen?.title?.string
+            "screen" to Compat.screen()?.javaClass?.simpleName
+            "screenTitle" to Compat.screen()?.title?.string
             "inWorld" to (mc.level != null)
             "player" to p?.let {
                 obj {
                     "x" to it.x; "y" to it.y; "z" to it.z
                     "yaw" to it.yRot; "pitch" to it.xRot
                     "health" to it.health; "food" to it.foodData.foodLevel
+                    //? if >=1.21.11 {
                     "dimension" to it.level().dimension().identifier().toString()
+                    //?} else {
+                    /*"dimension" to it.level().dimension().location().toString()
+                    *///?}
                     "gamemode" to mc.gameMode?.playerMode?.name
                     "name" to it.gameProfile.name
                 }

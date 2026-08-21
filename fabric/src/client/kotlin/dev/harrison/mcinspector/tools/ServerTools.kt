@@ -1,5 +1,6 @@
 package dev.harrison.mcinspector.tools
 
+import dev.harrison.mcinspector.compat.Compat
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import dev.harrison.mcinspector.mcp.RenderThread
@@ -47,7 +48,7 @@ class DisconnectTool : Tool {
                 mc.level?.disconnect(Component.literal("MCInspector disconnect"))
                 mc.disconnectWithProgressScreen()
             }
-            mc.setScreen(TitleScreen())
+            Compat.setScreen(TitleScreen())
             had
         }
         TickScheduler.awaitTicks(2)

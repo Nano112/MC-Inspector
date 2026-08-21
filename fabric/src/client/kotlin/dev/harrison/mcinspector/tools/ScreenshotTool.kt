@@ -1,5 +1,6 @@
 package dev.harrison.mcinspector.tools
 
+import dev.harrison.mcinspector.compat.Compat
 import com.google.gson.JsonObject
 import dev.harrison.mcinspector.config.InspectorConfig
 import dev.harrison.mcinspector.input.InputInjector
@@ -39,7 +40,7 @@ class ScreenshotTool(private val cfg: InspectorConfig) : Tool {
         val done = CompletableFuture<JsonObject>()
         RenderThread.run {
             val mc = Minecraft.getInstance()
-            val target = mc.mainRenderTarget
+            val target = Compat.mainRenderTarget()
             // takeScreenshot requires width/height divisible by the factor; fall back to 1 if not.
             val d = if (target.width % downscale == 0 && target.height % downscale == 0) downscale else 1
             val win = mc.window
@@ -48,7 +49,7 @@ class ScreenshotTool(private val cfg: InspectorConfig) : Tool {
                 "mouseScale" to d / InputInjector.pixelRatio()
                 "mouseWidth" to win.screenWidth; "mouseHeight" to win.screenHeight
                 "framebufferWidth" to win.width; "framebufferHeight" to win.height; "guiScale" to win.guiScale
-                "screen" to mc.screen?.javaClass?.simpleName
+                "screen" to Compat.screen()?.javaClass?.simpleName
             }
             try {
                 Screenshot.takeScreenshot(target, d) { img ->

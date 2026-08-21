@@ -1,5 +1,6 @@
 package dev.harrison.mcinspector.tools
 
+import dev.harrison.mcinspector.compat.Compat
 import com.google.gson.JsonObject
 import dev.harrison.mcinspector.input.InputInjector
 import dev.harrison.mcinspector.input.KeyNames
@@ -38,7 +39,7 @@ class PressKeyTool : Tool {
         val mods = KeyNames.modifiers(args.strList("modifiers"))
         val hold = (args.int("holdTicks") ?: 1).coerceIn(1, 1200)
         RenderThread.run {
-            val inWorld = Minecraft.getInstance().screen == null
+            val inWorld = Compat.screen() == null
             InputInjector.keyDown(key, mods)
             if (inWorld) InputInjector.keyMappingSet(key, true)
             TickScheduler.after(hold) {
