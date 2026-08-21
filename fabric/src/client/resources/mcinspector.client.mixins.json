@@ -3,7 +3,10 @@
   "minVersion": "0.8",
   "package": "dev.harrison.mcinspector.mixin",
   "compatibilityLevel": "${mixin_java}",
-  "client": [],
+  "client": [
+    "KeyboardHandlerAccessor",
+    "MouseHandlerAccessor"
+  ],
   "injectors": {
     "defaultRequire": 1
   }
