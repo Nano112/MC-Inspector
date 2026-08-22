@@ -347,7 +347,8 @@ results (screenshot) are attached as image blocks in order. Example:
 Run JavaScript (Rhino, ES6-ish) inside the game client for anything the other tools don't cover.
 Globals: mc (Minecraft), player, level, window, packets (PacketStore), panellib (PanelLibApi|null),
 tools.call(name, args) → result of any other MCP tool as a JS object, log(...) → collected output, Packages.<fqcn> / importClass(Packages.a.b.C) for Java.
-The last expression is the result (JS objects are JSON-stringified). Runs on the render thread by default
+The last expression is the result (JS objects are JSON-stringified). NEVER call Packages.imgui.* from here: ImGui's native
+assertions terminate the whole game process. Runs on the render thread by default
 (safe for game state; keep it short — a deadline aborts runaway scripts). Examples:
   `player.getHealth()`   ·   `mc.options.guiScale().get()`   ·   `tools.call("get_state").player.x`
   `var ps = packets.query(new Packages.dev.harrison.mcinspector.packets.PacketQuery(null,null,null,null,0,5,true)); ps.size()`
