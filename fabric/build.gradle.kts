@@ -20,7 +20,16 @@ base {
 
 repositories {
     maven("https://maven.fabricmc.net/") { name = "Fabric" }
-    mavenLocal() // panel-lib (../panel-lib: ./gradlew :fabric:<ver>:publishToMavenLocal)
+    mavenLocal() // panel-lib (../panel-lib: ./gradlew publishToMavenLocal)
+    // panel-lib releases on GitHub Packages (token with read:packages via gpr.user/gpr.key or GITHUB_ACTOR/GITHUB_TOKEN).
+    maven("https://maven.pkg.github.com/Nano112/panel-lib") {
+        name = "GitHubPackages"
+        credentials {
+            username = (findProperty("gpr.user") as String?) ?: System.getenv("GITHUB_ACTOR") ?: ""
+            password = (findProperty("gpr.key") as String?) ?: System.getenv("GITHUB_TOKEN") ?: ""
+        }
+        content { includeGroup("dev.harrison") }
+    }
 }
 
 dependencies {

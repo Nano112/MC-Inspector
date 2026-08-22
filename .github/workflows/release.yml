@@ -1,0 +1,34 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: MC-Inspector
+      - uses: actions/checkout@v4
+        with:
+          repository: Nano112/panel-lib
+          path: panel-lib
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            21
+            25
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build panel-lib → mavenLocal
+        working-directory: panel-lib
+        run: ./gradlew publishToMavenLocal -x test --no-daemon
+      - name: Build all versions
+        working-directory: MC-Inspector
+        run: ./gradlew :fabric:buildAllVersions --no-daemon
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: MC-Inspector/build/libs/**/*.jar
+          generate_release_notes: true

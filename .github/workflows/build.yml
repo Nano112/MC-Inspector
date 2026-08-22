@@ -1,0 +1,35 @@
+name: build
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: MC-Inspector
+      - name: Checkout panel-lib (sibling, as in local development)
+        uses: actions/checkout@v4
+        with:
+          repository: Nano112/panel-lib
+          path: panel-lib
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            21
+            25
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build panel-lib → mavenLocal
+        working-directory: panel-lib
+        run: ./gradlew publishToMavenLocal -x test --no-daemon
+      - name: Build MC-Inspector, every Minecraft version (+ tests)
+        working-directory: MC-Inspector
+        run: ./gradlew :fabric:buildAllVersions --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mc-inspector-jars
+          path: MC-Inspector/build/libs/**/*.jar
