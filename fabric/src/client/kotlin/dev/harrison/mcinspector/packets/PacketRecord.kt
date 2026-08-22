@@ -38,6 +38,8 @@ class PacketRecord(
     private val packet: Any?,
     private val decoder: (Any?) -> JsonElement,
 ) {
+    /** Wire size in bytes (payload after the packet id); null for in-memory connections or until the encoder ran. */
+    @Volatile var size: Int? = null
     @Volatile private var decoded: JsonElement? = null
     @Volatile private var summaryCache: String? = null
 

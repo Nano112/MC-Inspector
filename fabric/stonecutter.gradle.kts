@@ -21,6 +21,11 @@ tasks.register("runClient") {
     description = "Runs the active Minecraft version's client ($activeVersion)."
     dependsOn(":fabric:$activeVersion:runClient")
 }
+tasks.register("runServer") {
+    group = "fabric"
+    description = "Runs the active Minecraft version's dev server ($activeVersion)."
+    dependsOn(":fabric:$activeVersion:runServer")
+}
 
 stonecutter parameters {
     replacements {

@@ -18,6 +18,6 @@ object Tools {
         // packets
         reg.register(PacketsListTool(), PacketsGetTool(), PacketsStatsTool(), PacketsClearTool(), PacketsCaptureTool())
         // composition
-        reg.register(SequenceTool(reg))
+        reg.register(SequenceTool(reg), ScriptTool(reg))
     }
 }

@@ -64,5 +64,13 @@ class PacketStore(val capacity: Int = 5000) {
     fun latestId(): Long = synchronized(lock) { ring.lastOrNull()?.id ?: 0 }
     fun stats(): Map<String, Long> = synchronized(lock) { counts.toSortedMap() }
 
+    /** Bytes per type over the records currently buffered (sizes arrive asynchronously, so computed on demand). */
+    fun bytesStats(): Map<String, Long> {
+        val snapshot = synchronized(lock) { ring.toList() }
+        val m = HashMap<String, Long>()
+        for (r in snapshot) r.size?.let { m.merge(r.type, it.toLong(), Long::plus) }
+        return m
+    }
+
     fun clear() = synchronized(lock) { ring.clear(); counts.clear(); totalSeen = 0; dropped = 0 }
 }

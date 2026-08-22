@@ -62,11 +62,12 @@ object PacketsPanel {
         val avail = ImGui.getContentRegionAvailY()
         val tableH = if (selectedId >= 0) avail * 0.55f else avail
         val flags = ImGuiTableFlags.RowBg or ImGuiTableFlags.BordersInnerH or ImGuiTableFlags.ScrollY or ImGuiTableFlags.Resizable
-        if (ImGui.beginTable("##packets", 5, flags, 0f, tableH)) {
+        if (ImGui.beginTable("##packets", 6, flags, 0f, tableH)) {
             ImGui.tableSetupScrollFreeze(0, 1)
             ImGui.tableSetupColumn("#", ImGuiTableColumnFlags.WidthFixed, 46f)
             ImGui.tableSetupColumn("time", ImGuiTableColumnFlags.WidthFixed, 82f)
             ImGui.tableSetupColumn("dir", ImGuiTableColumnFlags.WidthFixed, 34f)
+            ImGui.tableSetupColumn("bytes", ImGuiTableColumnFlags.WidthFixed, 48f)
             ImGui.tableSetupColumn("type", ImGuiTableColumnFlags.WidthStretch, 1.3f)
             ImGui.tableSetupColumn("summary", ImGuiTableColumnFlags.WidthStretch, 2f)
             ImGui.tableHeadersRow()
@@ -79,6 +80,7 @@ object PacketsPanel {
                 ImGui.tableNextColumn()
                 val c = if (r.dir == Direction.IN) t.info else t.success
                 Widgets.colored(if (r.dir == Direction.IN) "IN" else "OUT", c)
+                ImGui.tableNextColumn(); Widgets.muted(r.size?.toString() ?: "–")
                 ImGui.tableNextColumn(); ImGui.text(r.type.removePrefix("minecraft:"))
                 ImGui.tableNextColumn(); Widgets.muted(r.summary)
             }
@@ -92,7 +94,7 @@ object PacketsPanel {
             ImGui.spacing()
             if (r == null) { Widgets.faint("packet $selectedId was evicted"); return }
             Widgets.semibold("${r.type}  "); ImGui.sameLine(); Widgets.badge(r.dir.name, if (r.dir == Direction.IN) Widgets.Tone.INFO else Widgets.Tone.SUCCESS)
-            ImGui.sameLine(); Widgets.faint("${r.cls} · ${r.phase.name.lowercase()} · tick ${r.tick} · #${r.id}")
+            ImGui.sameLine(); Widgets.faint("${r.cls} · ${r.phase.name.lowercase()} · tick ${r.tick} · #${r.id}" + (r.size?.let { " · $it bytes" } ?: ""))
             if (ImGui.beginChild("##detail", 0f, 0f, true)) {
                 renderTree("fields", r.fields, 0)
             }

@@ -26,7 +26,7 @@ private val TS = DateTimeFormatter.ofPattern("HH:mm:ss.SSS").withZone(ZoneId.sys
 
 private fun row(r: PacketRecord): JsonObject = obj {
     "id" to r.id; "time" to TS.format(Instant.ofEpochMilli(r.epochMs)); "tick" to r.tick
-    "dir" to r.dir.name; "side" to r.side.name; "phase" to r.phase.name; "type" to r.type; "class" to r.cls; "summary" to r.summary
+    "dir" to r.dir.name; "side" to r.side.name; "phase" to r.phase.name; "type" to r.type; "class" to r.cls; "bytes" to r.size; "summary" to r.summary
 }
 
 class PacketsListTool : Tool {
@@ -74,7 +74,7 @@ class PacketsGetTool : Tool {
 
 class PacketsStatsTool : Tool {
     override val name = "packets_stats"
-    override val description = "Per-type packet counts since the last clear, plus buffer/pause state."
+    override val description = "Per-type packet counts and total bytes since the last clear, plus buffer/pause state. Byte counts are null/0 for in-memory singleplayer connections (never encoded)."
     override val inputSchema = schema("top" to prop("integer", "Only the N most frequent types (default all)."))
     override fun call(args: JsonObject): ToolResult {
         val store = PacketCapture.store
@@ -85,6 +85,7 @@ class PacketsStatsTool : Tool {
             "paused" to store.paused; "serverSide" to store.captureServerSide
             "excludes" to JsonArray().apply { store.excludes.forEach { add(JsonPrimitive(it.pattern)) } }
             "byType" to JsonObject().apply { entries.forEach { addProperty(it.key, it.value) } }
+            "bytesByType" to JsonObject().apply { store.bytesStats().entries.sortedByDescending { it.value }.forEach { addProperty(it.key, it.value) } }
         })
     }
 }

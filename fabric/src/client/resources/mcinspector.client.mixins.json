@@ -9,6 +9,8 @@
     "MinecraftWindowActiveMixin",
     "MouseGrabMixin",
     "MouseHandlerAccessor",
+    "PacketDecoderMixin",
+    "PacketEncoderMixin",
     "PresentCaptureMixin"
   ],
   "injectors": {

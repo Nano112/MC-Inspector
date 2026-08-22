@@ -35,9 +35,8 @@ case "${1:-start}" in
     if [ -f "$PIDFILE" ]; then
       PID=$(cat "$PIDFILE"); pkill -P "$PID" 2>/dev/null || true; kill "$PID" 2>/dev/null || true; rm -f "$PIDFILE"
     fi
-    # The actual MC java process is a grandchild; find it by its run dir.
-    pgrep -f "mcinspector|MC-Inspector/run" | xargs -r kill 2>/dev/null || true
-    pkill -f "net.fabricmc.devlaunchinjector.Main" 2>/dev/null || true
+    # The actual MC java process is a grandchild of gradle; match the CLIENT launcher only (not a dev server).
+    pkill -f "fabric.dli.main=net.fabricmc.loader.impl.launch.knot.KnotClient" 2>/dev/null || true
     echo "stopped" ;;
   status)
     if health; then echo; else echo "not reachable at $HEALTH"; fi ;;

@@ -10,7 +10,7 @@ Client-side Fabric mod for agent-driven game debugging. Two faces:
    tree. Agents get `packets_list / packets_get / packets_stats / packets_clear / packets_capture` (pause, exclude
    regexes, integrated-server side).
 
-Supported: Minecraft 1.21.8 – 1.21.11, 26.1, 26.2 (Stonecutter; active dev version 1.21.11).
+Supported: Minecraft 1.21.8 – 1.21.11, 26.1, 26.2 (Stonecutter; active dev version 1.21.11; embedded layout verified live on 1.21.11 and 26.2).
 
 ## Run
 
@@ -32,6 +32,21 @@ claude mcp add --transport http mcinspector http://127.0.0.1:38271/mcp
 ```
 
 Tool catalog: [docs/mcp-tools.md](docs/mcp-tools.md) (regenerate with `./gradlew :fabric:1.21.11:generateToolDocs`). Manual checklist: [docs/mcp-smoke-test.md](docs/mcp-smoke-test.md).
+
+## Dev server (real network packets)
+
+```bash
+scripts/run-server.sh start        # Fabric dev server on localhost:25565 (online-mode=false), same fabric/run dir
+```
+then `connect_server localhost:25565`. Byte sizes in `packets_*` are only available on real connections (singleplayer
+is in-memory and never encodes).
+
+## Scripting
+
+`exec_script` runs JavaScript (Rhino) inside the client with `mc`, `player`, `level`, `window`, `packets`, `panellib`,
+`tools.call(name, args)` and `log(...)`; Java is reachable via `Packages.<fqcn>` / `importClass`. A deadline aborts runaway
+scripts. Example: `tools.call("get_state").player.x` or
+`importClass(Packages.net.minecraft.network.chat.Component); mc.gui.getChat().addMessage(Component.literal("hi"))`.
 
 ## Keys
 

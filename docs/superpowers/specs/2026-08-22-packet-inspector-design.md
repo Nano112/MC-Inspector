@@ -13,7 +13,7 @@ a panel-lib **Packets** panel for humans and `packets_*` MCP tools for agents.
 | Topic | Decision |
 |---|---|
 | Hook | Mixins on `net.minecraft.network.Connection`: `channelRead0(ctx, Packet)` HEAD = inbound, `doSendPacket(Packet, listener, flush)` HEAD = outbound. Same signatures on 1.21.8–26.2; covers the in-memory singleplayer pipeline too. |
-| Record | `id` (monotonic), `t` (epoch ms), `tick`, `dir` (IN/OUT), `phase` (from the packet's package: handshake/status/login/configuration/game/common/cookie/ping), `type` (`packet.type().id()` e.g. `minecraft:set_entity_motion`), `cls` (simple class name), `summary` (one line), decoded `fields` (lazy, cached). Size is not captured in v1 (the encoder runs later on another thread; in-memory connections never encode). |
+| Record | `id` (monotonic), `t` (epoch ms), `tick`, `dir` (IN/OUT), `phase` (from the packet's package: handshake/status/login/configuration/game/common/cookie/ping), `type` (`packet.type().id()` e.g. `minecraft:set_entity_motion`), `cls` (simple class name), `summary` (one line), decoded `fields` (lazy, cached). `size` (bytes) from `PacketEncoder.encode` RETURN / `PacketDecoder.decode` HEAD, correlated by packet identity (`PacketSizes`); null for in-memory connections. |
 | Decode | Reflective: record components first, else declared fields up the hierarchy; depth ≤ 4, ≤ 32 elements per collection/array, strings ≤ 200 chars, known leaf types (numbers, String, UUID, Identifier, BlockPos, Vec3, enums, Component→string) rendered directly. Never throws — failures become `"<error: …>"`. |
 | Side | Each record carries `side` CLIENT/SERVER (a connection that *receives* clientbound packets is the client); the integrated server's connections are skipped unless `packets_capture {serverSide:true}`. |
 | Store | Ring buffer (default 5000, config `packet_buffer`), per-type counters (since clear), capture `paused` flag, `exclude` type patterns (config + runtime) to drop noise. Thread-safe (netty + render + http threads). |
@@ -36,4 +36,4 @@ fabric/src/client/kotlin/dev/harrison/mcinspector/ui/PacketsPanel.kt   (register
 
 ## Out of scope (v1)
 
-Byte sizes / raw hex, packet editing/injection, replay, persistent capture files.
+Raw hex, packet editing/injection, replay, persistent capture files.

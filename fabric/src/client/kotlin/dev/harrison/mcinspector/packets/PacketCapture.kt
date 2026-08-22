@@ -24,11 +24,13 @@ object PacketCapture {
             val cls = packet.javaClass
             val type = typeId(packet, cls)
             if (!store.accepts(type)) return
-            store.add(PacketRecord(
+            val rec = PacketRecord(
                 id = store.nextId(), epochMs = System.currentTimeMillis(), tick = TickScheduler.tick,
                 dir = dir, side = side, type = type, cls = cls.simpleName, phase = Phase.of(cls.name),
                 packet = packet, decoder = PacketDecoder::decode,
-            ))
+            )
+            if (dir == Direction.IN) rec.size = PacketSizes.takeInbound(packet) else PacketSizes.expectOutbound(packet, rec)
+            store.add(rec)
         } catch (_: Throwable) {
             // never disturb networking
         }

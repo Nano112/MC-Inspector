@@ -22,7 +22,7 @@ class StateTool : Tool {
         obj {
             "screen" to Compat.screen()?.javaClass?.simpleName
             "screenTitle" to Compat.screen()?.title?.string
-            "inWorld" to (mc.level != null)
+            "inWorld" to (mc.level != null && mc.player != null)
             "player" to p?.let {
                 obj {
                     "x" to it.x; "y" to it.y; "z" to it.z

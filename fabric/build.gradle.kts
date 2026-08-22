@@ -40,6 +40,9 @@ dependencies {
     add(modImpl, "dev.harrison:panel-lib-mc$mcVersion:$panelLibVersion")
     include("dev.harrison:panel-lib-mc$mcVersion:$panelLibVersion")
 
+    // JavaScript engine for the exec_script tool (pure Java, interpreted mode).
+    include(implementation("org.mozilla:rhino:1.7.15")!!)
+
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
     testImplementation("org.jetbrains.kotlin:kotlin-test:2.4.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

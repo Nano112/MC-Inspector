@@ -100,7 +100,7 @@ results (screenshot) are attached as image blocks in order. Example:
                 val mc = Minecraft.getInstance()
                 val screen = Compat.screen()?.javaClass?.simpleName
                 val overlay = runCatching { dev.harrison.panellib.PanelLib.api().isOverlayOpen }.getOrDefault(false)
-                Triple(mc.level != null, screen, overlay)
+                Triple(mc.level != null && mc.player != null, screen, overlay)
             }
             last = "inWorld=${state.first} screen=${state.second ?: "none"} overlayOpen=${state.third}"
             val okWorld = wantInWorld == null || wantInWorld == state.first
