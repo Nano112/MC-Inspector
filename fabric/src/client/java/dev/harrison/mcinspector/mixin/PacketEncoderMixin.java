@@ -15,6 +15,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class PacketEncoderMixin {
     @Inject(method = "encode(Lio/netty/channel/ChannelHandlerContext;Lnet/minecraft/network/protocol/Packet;Lio/netty/buffer/ByteBuf;)V", at = @At("RETURN"))
     private void mcinspector$encoded(ChannelHandlerContext ctx, Packet<?> packet, ByteBuf buf, CallbackInfo ci) {
-        PacketSizes.onEncoded(packet, buf.readableBytes());
+        PacketSizes.onEncoded(packet, buf);
     }
 }

@@ -8,6 +8,8 @@ package dev.harrison.mcinspector.packets
  */
 object PacketSizes {
     private const val MAX = 8192
+    /** How many leading payload bytes to keep per packet for hex dumps. */
+    @Volatile var RAW_CAP = 256
 
     private class IdKey(val o: Any) {
         override fun equals(other: Any?) = other is IdKey && other.o === o
@@ -19,21 +21,28 @@ object PacketSizes {
     }
 
     private val awaitingSize = Bounded<PacketRecord>()   // outbound records waiting for the encoder
-    private val pendingInbound = Bounded<Int>()          // decoded sizes waiting for channelRead0
-    private val decodeStart = ThreadLocal<Int>()
+    private val pendingInbound = Bounded<Pair<Int, ByteArray?>>()   // decoded (size, raw) waiting for channelRead0
+    private val decodeStart = ThreadLocal<Pair<Int, ByteArray?>>()
 
     fun expectOutbound(packet: Any, rec: PacketRecord) = synchronized(awaitingSize) { awaitingSize[IdKey(packet)] = rec }
 
     /** PacketEncoder.encode RETURN. */
     @JvmStatic
-    fun onEncoded(packet: Any, bytes: Int) {
+    fun onEncoded(packet: Any, buf: io.netty.buffer.ByteBuf) {
         val rec = synchronized(awaitingSize) { awaitingSize.remove(IdKey(packet)) } ?: return
-        rec.size = bytes
+        rec.size = buf.readableBytes()
+        rec.raw = peek(buf)
     }
 
     /** PacketDecoder.decode HEAD. */
     @JvmStatic
-    fun onDecodeStart(readable: Int) = decodeStart.set(readable)
+    fun onDecodeStart(buf: io.netty.buffer.ByteBuf) = decodeStart.set(buf.readableBytes() to peek(buf))
+
+    private fun peek(buf: io.netty.buffer.ByteBuf): ByteArray? {
+        val n = minOf(buf.readableBytes(), RAW_CAP)
+        if (n <= 0) return null
+        return ByteArray(n).also { buf.getBytes(buf.readerIndex(), it) }
+    }
 
     /** PacketDecoder.decode RETURN with the decoded packet. */
     @JvmStatic
@@ -44,6 +53,6 @@ object PacketSizes {
         synchronized(pendingInbound) { pendingInbound[IdKey(packet)] = n }
     }
 
-    /** Called when an inbound record is created; returns the size seen by the decoder, if any. */
-    fun takeInbound(packet: Any): Int? = synchronized(pendingInbound) { pendingInbound.remove(IdKey(packet)) }
+    /** Called when an inbound record is created; returns (size, raw) seen by the decoder, if any. */
+    fun takeInbound(packet: Any): Pair<Int, ByteArray?>? = synchronized(pendingInbound) { pendingInbound.remove(IdKey(packet)) }
 }

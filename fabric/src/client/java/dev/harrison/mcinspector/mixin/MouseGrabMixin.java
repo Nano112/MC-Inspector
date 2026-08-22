@@ -26,6 +26,8 @@ public abstract class MouseGrabMixin {
     @Inject(method = "grabMouse", at = @At("HEAD"), cancellable = true)
     private void mcinspector$softGrab(CallbackInfo ci) {
         if (InputInjector.lockCursor) return;
+        // A human clicking the game area inside the panel-lib overlay wants a REAL grab (hidden, locked cursor).
+        if (dev.harrison.panellib.framework.Overlay.isGameFocus()) return;
         if (!this.mouseGrabbed) {
             Minecraft mc = Minecraft.getInstance();
             this.mouseGrabbed = true;

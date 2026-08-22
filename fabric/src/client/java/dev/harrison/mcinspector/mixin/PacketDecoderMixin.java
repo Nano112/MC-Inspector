@@ -18,7 +18,7 @@ public abstract class PacketDecoderMixin {
 
     @Inject(method = DECODE, at = @At("HEAD"))
     private void mcinspector$decodeStart(ChannelHandlerContext ctx, ByteBuf buf, List<Object> out, CallbackInfo ci) {
-        PacketSizes.onDecodeStart(buf.readableBytes());
+        PacketSizes.onDecodeStart(buf);
     }
 
     @Inject(method = DECODE, at = @At("RETURN"))

@@ -1,5 +1,6 @@
 package dev.harrison.mcinspector.packets
 
+import com.google.gson.JsonParser
 import com.google.gson.JsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -27,6 +28,20 @@ class PacketStoreTest {
         assertEquals(listOf(3L), s.query(PacketQuery(sinceId = 2)).map { it.id })
         assertEquals(1, s.query(PacketQuery(limit = 1)).size)
         assertEquals(3L, s.query(PacketQuery(limit = 1)).first().id)
+    }
+
+    @Test fun markersSearchRatesPrevious() {
+        val s = PacketStore(10)
+        val a = PacketRecord(s.nextId(), System.currentTimeMillis(), 0, Direction.IN, Side.CLIENT, "minecraft:set_health", "X", Phase.GAME, null) { JsonParser.parseString("""{"health":20}""") }
+        s.add(a)
+        val m = s.mark("before hit", 5)
+        val b = PacketRecord(s.nextId(), System.currentTimeMillis(), 0, Direction.IN, Side.CLIENT, "minecraft:set_health", "X", Phase.GAME, null) { JsonParser.parseString("""{"health":14}""") }
+        s.add(b)
+        assertTrue(m.isMarker); assertEquals(listOf(b.id), s.query(PacketQuery(sinceId = m.id)).map { it.id })
+        assertEquals(a, s.previousOfSameType(b))
+        assertEquals(listOf(b.id), s.search(Regex("\"health\":14"), 10).map { it.id })
+        assertEquals(1, JsonDiff.diff(a.fields, b.fields).size)
+        assertTrue((s.rates()["minecraft:set_health"]?.first ?: 0.0) > 0.0)
     }
 
     @Test fun statsPauseExcludes() {

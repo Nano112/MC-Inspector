@@ -29,7 +29,7 @@ object PacketCapture {
                 dir = dir, side = side, type = type, cls = cls.simpleName, phase = Phase.of(cls.name),
                 packet = packet, decoder = PacketDecoder::decode,
             )
-            if (dir == Direction.IN) rec.size = PacketSizes.takeInbound(packet) else PacketSizes.expectOutbound(packet, rec)
+            if (dir == Direction.IN) PacketSizes.takeInbound(packet)?.let { (n, raw) -> rec.size = n; rec.raw = raw } else PacketSizes.expectOutbound(packet, rec)
             store.add(rec)
         } catch (_: Throwable) {
             // never disturb networking

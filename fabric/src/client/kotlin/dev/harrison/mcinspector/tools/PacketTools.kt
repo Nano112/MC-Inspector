@@ -9,6 +9,7 @@ import dev.harrison.mcinspector.mcp.bool
 import dev.harrison.mcinspector.mcp.int
 import dev.harrison.mcinspector.mcp.obj
 import dev.harrison.mcinspector.mcp.prop
+import dev.harrison.mcinspector.mcp.require
 import dev.harrison.mcinspector.mcp.schema
 import dev.harrison.mcinspector.mcp.str
 import dev.harrison.mcinspector.mcp.strList
@@ -64,11 +65,14 @@ class PacketsListTool : Tool {
 class PacketsGetTool : Tool {
     override val name = "packets_get"
     override val description = "Full decoded fields of one captured packet by id (from packets_list)."
-    override val inputSchema = schema("id" to prop("integer", "Packet id."), required = listOf("id"))
+    override val inputSchema = schema("id" to prop("integer", "Packet id."), "hex" to prop("boolean", "Include a hex dump of the first bytes (network connections only)."), required = listOf("id"))
     override fun call(args: JsonObject): ToolResult {
         val id = args.int("id")?.toLong() ?: throw IllegalArgumentException("id required")
         val r = PacketCapture.store.get(id) ?: throw IllegalArgumentException("no packet with id $id (buffer holds ${PacketCapture.store.size()}; it may have been evicted)")
-        return ToolResult.json(row(r).apply { add("fields", r.fields) })
+        return ToolResult.json(row(r).apply {
+            add("fields", r.fields)
+            if (args.bool("hex") == true) add("hex", JsonArray().apply { r.raw?.let { dev.harrison.mcinspector.packets.Hex.dump(it).forEach { l -> add(JsonPrimitive(l)) } } })
+        })
     }
 }
 
@@ -86,6 +90,7 @@ class PacketsStatsTool : Tool {
             "excludes" to JsonArray().apply { store.excludes.forEach { add(JsonPrimitive(it.pattern)) } }
             "byType" to JsonObject().apply { entries.forEach { addProperty(it.key, it.value) } }
             "bytesByType" to JsonObject().apply { store.bytesStats().entries.sortedByDescending { it.value }.forEach { addProperty(it.key, it.value) } }
+            "perSecond" to JsonObject().apply { store.rates().entries.sortedByDescending { it.value.first }.forEach { (k, v) -> add(k, obj { "packets" to "%.1f".format(v.first).toDouble(); "bytes" to "%.0f".format(v.second).toDouble() }) } }
         })
     }
 }
@@ -111,5 +116,76 @@ class PacketsCaptureTool : Tool {
         args.bool("serverSide")?.let { store.captureServerSide = it }
         if (args.has("exclude")) store.excludes = args.strList("exclude").map { Regex(it, RegexOption.IGNORE_CASE) }
         return ToolResult.json(obj { "paused" to store.paused; "serverSide" to store.captureServerSide; "excludes" to JsonArray().apply { store.excludes.forEach { add(JsonPrimitive(it.pattern)) } } })
+    }
+}
+
+class PacketsMarkTool : Tool {
+    override val name = "packets_mark"
+    override val description = "Insert a labelled marker into the packet stream (e.g. before/after an action) and return its id; then `packets_list {since: id}` shows exactly what happened after it."
+    override val inputSchema = schema("label" to prop("string", "Marker label."), required = listOf("label"))
+    override fun call(args: JsonObject): ToolResult {
+        val m = PacketCapture.store.mark(args.require("label"), dev.harrison.mcinspector.mcp.TickScheduler.tick)
+        return ToolResult.json(obj { "id" to m.id; "label" to args.require("label"); "tick" to m.tick })
+    }
+}
+
+class PacketsSearchTool : Tool {
+    override val name = "packets_search"
+    override val description = "Regex search over DECODED packet fields (JSON text) and type ids, newest first — e.g. find every packet mentioning entity id 231: \"\\\"id\\\":231\\b\" or a block position \"x=-3, z=-8\". Scans up to `maxScan` buffered packets."
+    override val inputSchema = schema(
+        "query" to prop("string", "Regex (case-insensitive)."),
+        "limit" to prop("integer", "Max results (default 20, max 200)."),
+        "maxScan" to prop("integer", "Max packets to decode/scan (default 2000)."),
+        required = listOf("query"),
+    )
+    override fun call(args: JsonObject): ToolResult {
+        val rows = PacketCapture.store.search(Regex(args.require("query"), RegexOption.IGNORE_CASE), (args.int("limit") ?: 20).coerceIn(1, 200), (args.int("maxScan") ?: 2000).coerceIn(1, 5000))
+        return ToolResult.json(obj { "returned" to rows.size; "packets" to JsonArray().apply { rows.forEach { add(row(it)) } } })
+    }
+}
+
+class PacketsWatchTool : Tool {
+    override val name = "packets_watch"
+    override val description = "Block until `count` NEW packets matching `type` (regex) / `direction` arrive, or `timeoutTicks` elapse. Returns the matches with decoded fields. Use it to wait for a specific event instead of polling (e.g. type \"block_update\" after placing a block)."
+    override val inputSchema = schema(
+        "type" to prop("string", "Regex on type id or class name."),
+        "direction" to prop("string", "IN or OUT", enum = listOf("IN", "OUT")),
+        "count" to prop("integer", "How many matches to wait for (default 1, max 50)."),
+        "timeoutTicks" to prop("integer", "Give up after N ticks (default 200 = 10 s, max 6000)."),
+        "fields" to prop("boolean", "Include decoded fields (default true)."),
+        required = listOf("type"),
+    )
+    override fun call(args: JsonObject): ToolResult {
+        val store = PacketCapture.store
+        val q = PacketQuery(direction = args.str("direction")?.let { Direction.valueOf(it.uppercase()) }, type = Regex(args.require("type"), RegexOption.IGNORE_CASE), sinceId = store.latestId(), limit = 500, newestFirst = false)
+        val want = (args.int("count") ?: 1).coerceIn(1, 50)
+        val timeout = (args.int("timeoutTicks") ?: 200).coerceIn(1, 6000)
+        val withFields = args.bool("fields") ?: true
+        val start = dev.harrison.mcinspector.mcp.TickScheduler.tick
+        var found: List<PacketRecord> = emptyList()
+        while (dev.harrison.mcinspector.mcp.TickScheduler.tick - start < timeout) {
+            found = store.query(q)
+            if (found.size >= want) break
+            dev.harrison.mcinspector.mcp.TickScheduler.awaitTicks(2)
+        }
+        val ok = found.size >= want
+        return ToolResult.json(obj {
+            "satisfied" to ok; "matched" to found.size; "waitedTicks" to (dev.harrison.mcinspector.mcp.TickScheduler.tick - start)
+            "packets" to JsonArray().apply { found.take(want).forEach { r -> add(row(r).apply { if (withFields) add("fields", r.fields) }) } }
+        })
+    }
+}
+
+class PacketsDiffTool : Tool {
+    override val name = "packets_diff"
+    override val description = "Changed fields between a packet and the previous packet of the same type+direction (or an explicit `against` id). Great for 'what changed in set_entity_data / update_attributes'."
+    override val inputSchema = schema("id" to prop("integer", "Packet id."), "against" to prop("integer", "Compare with this id instead of the previous same-type packet."), required = listOf("id"))
+    override fun call(args: JsonObject): ToolResult {
+        val store = PacketCapture.store
+        val b = store.get(args.int("id")!!.toLong()) ?: throw IllegalArgumentException("no packet ${args.int("id")}")
+        val a = args.int("against")?.let { store.get(it.toLong()) ?: throw IllegalArgumentException("no packet $it") } ?: store.previousOfSameType(b)
+            ?: return ToolResult.json(obj { "id" to b.id; "type" to b.type; "against" to null; "changes" to JsonArray(); "note" to "no earlier packet of this type in the buffer" })
+        val changes = dev.harrison.mcinspector.packets.JsonDiff.diff(a.fields, b.fields)
+        return ToolResult.json(obj { "id" to b.id; "against" to a.id; "type" to b.type; "changed" to changes.size; "changes" to dev.harrison.mcinspector.packets.JsonDiff.toJson(changes) })
     }
 }

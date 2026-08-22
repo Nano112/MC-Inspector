@@ -47,6 +47,43 @@ class PacketStore(val capacity: Int = 5000) {
 
     fun get(id: Long): PacketRecord? = synchronized(lock) { ring.firstOrNull { it.id == id } }
 
+    /** Insert a marker row (shows in the panel and in packets_list; ids share the packet sequence). */
+    fun mark(label: String, tick: Long): PacketRecord {
+        val rec = PacketRecord(nextId(), System.currentTimeMillis(), tick, Direction.OUT, Side.CLIENT, "marker:$label", "Marker", Phase.MARKER, null) { com.google.gson.JsonPrimitive(label) }
+        add(rec)
+        return rec
+    }
+
+    /** Previous record of the same type (and direction) before [rec], if still buffered. */
+    fun previousOfSameType(rec: PacketRecord): PacketRecord? = synchronized(lock) {
+        ring.lastOrNull { it.id < rec.id && it.type == rec.type && it.dir == rec.dir }
+    }
+
+    /** Regex over the DECODED fields (JSON text) and type, newest first; decodes lazily so scanning is capped. */
+    fun search(regex: Regex, limit: Int, maxScan: Int = 2000): List<PacketRecord> {
+        val snapshot = synchronized(lock) { ring.toList() }
+        val out = ArrayList<PacketRecord>()
+        for (r in snapshot.asReversed().take(maxScan)) {
+            if (r.isMarker) continue
+            if (regex.containsMatchIn(r.type) || regex.containsMatchIn(r.fields.toString())) { out += r; if (out.size >= limit) break }
+        }
+        return out
+    }
+
+    /** Packets and bytes per second over the trailing [windowMs], per type. */
+    fun rates(windowMs: Long = 5000): Map<String, Pair<Double, Double>> {
+        val snapshot = synchronized(lock) { ring.toList() }
+        val now = System.currentTimeMillis()
+        val counts = HashMap<String, Long>(); val bytes = HashMap<String, Long>()
+        for (r in snapshot.asReversed()) {
+            if (now - r.epochMs > windowMs) break
+            if (r.isMarker) continue
+            counts.merge(r.type, 1L, Long::plus); r.size?.let { bytes.merge(r.type, it.toLong(), Long::plus) }
+        }
+        val sec = windowMs / 1000.0
+        return counts.keys.associateWith { (counts[it]!! / sec) to ((bytes[it] ?: 0L) / sec) }
+    }
+
     fun query(q: PacketQuery): List<PacketRecord> {
         val snapshot = synchronized(lock) { ring.toList() }
         val seq = snapshot.asSequence()

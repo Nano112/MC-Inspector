@@ -8,7 +8,7 @@ enum class Direction { IN, OUT }
 enum class Side { CLIENT, SERVER }
 
 enum class Phase {
-    HANDSHAKE, STATUS, LOGIN, CONFIGURATION, GAME, COMMON, COOKIE, PING, UNKNOWN;
+    HANDSHAKE, STATUS, LOGIN, CONFIGURATION, GAME, COMMON, COOKIE, PING, UNKNOWN, MARKER;
 
     companion object {
         /** Infer the protocol phase from the packet class's package (`net.minecraft.network.protocol.<phase>.…`). */
@@ -40,6 +40,10 @@ class PacketRecord(
 ) {
     /** Wire size in bytes (payload after the packet id); null for in-memory connections or until the encoder ran. */
     @Volatile var size: Int? = null
+    /** First bytes of the wire payload (network connections only, capped by PacketSizes.RAW_CAP). */
+    @Volatile var raw: ByteArray? = null
+    /** Markers are synthetic records inserted with `packets_mark` to delimit an action in the stream. */
+    val isMarker: Boolean get() = phase == Phase.MARKER
     @Volatile private var decoded: JsonElement? = null
     @Volatile private var summaryCache: String? = null
 
