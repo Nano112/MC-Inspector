@@ -263,3 +263,33 @@ class PacketsReleaseTool : Tool {
         return ToolResult.json(obj { (if (drop) "dropped" else "resumed") to n; "stillHeld" to PacketRules.heldCount() })
     }
 }
+
+class PacketsExportTool : Tool {
+    override val name = "packets_export"
+    override val description = """Export buffered packets to a file for external tools: jsonl (one decoded packet per line — jq/Python/pandas),
+csv (summary table), pcap (libpcap, link type 147 USER0: 1 byte direction + 4-byte id + raw wire payload; network connections only —
+open in Wireshark with a DLT_USER0 Lua dissector, or scapy/tshark). Filters as in packets_list. Files go to <gameDir>/packet-exports/ unless `path` is given."""
+    override val inputSchema = schema(
+        "format" to prop("string", "jsonl (default) | csv | pcap", enum = listOf("jsonl", "csv", "pcap")),
+        "path" to prop("string", "Output file path (optional)."),
+        "direction" to prop("string", "IN or OUT", enum = listOf("IN", "OUT")),
+        "type" to prop("string", "Regex on type id / class."),
+        "since" to prop("integer", "Only packets with id > since."),
+        "limit" to prop("integer", "Max records (default: whole buffer)."),
+        "fields" to prop("boolean", "jsonl: include decoded fields (default true; set false for a compact file)."),
+    )
+    override fun call(args: JsonObject): ToolResult {
+        val store = PacketCapture.store
+        val format = dev.harrison.mcinspector.packets.PacketExport.Format.valueOf((args.str("format") ?: "jsonl").uppercase())
+        val rows = store.query(PacketQuery(
+            direction = args.str("direction")?.let { Direction.valueOf(it.uppercase()) },
+            type = args.str("type")?.let { Regex(it, RegexOption.IGNORE_CASE) },
+            sinceId = args.int("since")?.toLong() ?: 0,
+            limit = args.int("limit") ?: Int.MAX_VALUE, newestFirst = false,
+        ))
+        val dir = net.fabricmc.loader.api.FabricLoader.getInstance().gameDir.resolve("packet-exports")
+        val out = args.str("path")?.let { java.nio.file.Path.of(it) } ?: dev.harrison.mcinspector.packets.PacketExport.defaultPath(dir, format)
+        val r = dev.harrison.mcinspector.packets.PacketExport.export(rows, format, out, args.bool("fields") ?: true)
+        return ToolResult.json(obj { "path" to r.path.toAbsolutePath().toString(); "records" to r.records; "bytes" to r.bytes; "format" to format.name.lowercase() })
+    }
+}

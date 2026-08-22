@@ -17,6 +17,9 @@ Minecraft 1.21.8 – 1.21.11, 26.1, 26.2 · Fabric · Kotlin · MIT
   fields, byte sizes + hex on real connections, regex/deep filters with presets, markers, search, `packets_watch`,
   diffs, rate graphs, and **rules**: breakpoints (`PAUSE` → hold, resume, drop), `DROP`, and JS `SCRIPT` rules that
   can rewrite inbound/outbound packets (`set(packet, "health", 20)`). Panel key **O** (Live / Types / Graph / Rules tabs).
+- **Export**: `packets_export` / the panel's Export button write JSON Lines (decoded fields + raw hex), CSV, or PCAP
+  (raw wire bytes, link type USER0 — [docs/wireshark-mcinspector.lua](docs/wireshark-mcinspector.lua) dissects it) to
+  `<gameDir>/packet-exports/`.
 - **MCP Host panel** (key **I**): port, tool-call counters. Overlay key **K** (panel-lib).
 
 ## Install

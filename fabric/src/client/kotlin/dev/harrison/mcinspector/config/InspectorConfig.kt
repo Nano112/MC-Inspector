@@ -19,6 +19,8 @@ data class InspectorConfig(
     val packetBuffer: Int = 5000,
     /** How many newest records keep the live packet object; older ones are materialised to JSON in the background (bounded memory). */
     val packetRetain: Int = 1000,
+    /** Leading wire bytes kept per packet for hex dumps / pcap export (network connections). */
+    val packetRawBytes: Int = 65536,
 ) {
     companion object {
         const val DEFAULT_PORT = 38271
@@ -50,6 +52,7 @@ data class InspectorConfig(
                 packetCapture = o.get("packet_capture")?.takeUnless { it.isJsonNull }?.asBoolean ?: d.packetCapture,
                 packetBuffer = o.get("packet_buffer")?.takeUnless { it.isJsonNull }?.asInt ?: d.packetBuffer,
                 packetRetain = o.get("packet_retain")?.takeUnless { it.isJsonNull }?.asInt ?: d.packetRetain,
+                packetRawBytes = o.get("packet_raw_bytes")?.takeUnless { it.isJsonNull }?.asInt ?: d.packetRawBytes,
             )
         }
     }
@@ -69,5 +72,6 @@ data class InspectorConfig(
         addProperty("packet_capture", packetCapture)
         addProperty("packet_buffer", packetBuffer)
         addProperty("packet_retain", packetRetain)
+        addProperty("packet_raw_bytes", packetRawBytes)
     })
 }

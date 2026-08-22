@@ -14,6 +14,7 @@ object PacketCapture {
         store.resize(cfg.packetBuffer)
         store.retain = cfg.packetRetain.coerceIn(50, cfg.packetBuffer)
         store.paused = !cfg.packetCapture
+        PacketSizes.RAW_CAP = cfg.packetRawBytes.coerceIn(0, 4 * 1024 * 1024)
     }
 
     /** @return true when the original delivery must be cancelled (dropped, held, or replaced). */

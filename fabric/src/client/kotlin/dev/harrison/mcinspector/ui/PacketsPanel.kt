@@ -48,6 +48,7 @@ object PacketsPanel {
     private var detailMode = 0 // 0 fields, 1 diff, 2 hex
     private var markerCounter = 0
     private var deep = false
+    private var exportMsg: String? = null
 
     private val PRESETS = listOf(
         "chat" to "chat|system_chat|disguised",
@@ -98,6 +99,21 @@ object PacketsPanel {
         }
         ImGui.sameLine()
         Widgets.textField("##marker", markerLabel, "marker label", width = 120f)
+        ImGui.sameLine()
+        if (Widgets.secondaryButton("${Icons.DOWNLOAD}  Export")) ImGui.openPopup("##export")
+        if (ImGui.beginPopup("##export")) {
+            Widgets.faint("to <gameDir>/packet-exports/")
+            for (f in dev.harrison.mcinspector.packets.PacketExport.Format.entries) {
+                val label = when (f) { dev.harrison.mcinspector.packets.PacketExport.Format.JSONL -> "JSON Lines (decoded fields)"; dev.harrison.mcinspector.packets.PacketExport.Format.CSV -> "CSV (summary)"; dev.harrison.mcinspector.packets.PacketExport.Format.PCAP -> "PCAP (raw bytes, Wireshark)" }
+                if (ImGui.menuItem(label)) {
+                    val dir = net.fabricmc.loader.api.FabricLoader.getInstance().gameDir.resolve("packet-exports")
+                    val rows = store.query(PacketQuery(limit = Int.MAX_VALUE, newestFirst = false))
+                    exportMsg = runCatching { val r = dev.harrison.mcinspector.packets.PacketExport.export(rows, f, dev.harrison.mcinspector.packets.PacketExport.defaultPath(dir, f)); "exported ${r.records} records → ${r.path.fileName}" }.getOrElse { "export failed: ${it.message}" }
+                }
+            }
+            ImGui.endPopup()
+        }
+        exportMsg?.let { Widgets.statusText(it, if (it.startsWith("export failed")) Widgets.Tone.DANGER else Widgets.Tone.SUCCESS) }
 
         Widgets.textField("##filter", filter, "filter type (regex), e.g. chat|move_player", width = -1f)
         updateFilter()
