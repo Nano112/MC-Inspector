@@ -1,4 +1,8 @@
 {
   "key.mcinspector.mcp_panel": "Toggle MCP Host panel",
-  "key.mcinspector.packets_panel": "Toggle Packets panel"
+  "key.mcinspector.packets_panel": "Toggle Packets panel",
+  "key.mcinspector.capture_toggle": "Packet capture: start / stop",
+  "key.mcinspector.capture_mark": "Packet capture: add marker",
+  "key.mcinspector.capture_clear": "Packet capture: clear buffer",
+  "key.mcinspector.capture_export": "Packet capture: export JSONL"
 }

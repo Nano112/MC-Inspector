@@ -15,6 +15,14 @@ import org.lwjgl.glfw.GLFW
 object InspectorPanels : PanelLibEntrypoint {
     @Volatile var demoClicks = 0
         private set
+    private var markCounter = 0
+
+    /** Action-bar message (the small text above the hotbar). */
+    private fun toast(msg: String) {
+        val mc = net.minecraft.client.Minecraft.getInstance()
+        mc.gui.setOverlayMessage(net.minecraft.network.chat.Component.literal("[MC-Inspector] $msg"), false)
+        McInspectorClient.LOGGER.info("[MCInspector] {}", msg)
+    }
 
     override fun init(api: PanelLibApi) {
         val mod = api.registerMod("mcinspector", "Inspector", Icons.BUG)
@@ -24,6 +32,24 @@ object InspectorPanels : PanelLibEntrypoint {
         mod.menuItem("Clear packet buffer", Icons.TRASH) { dev.harrison.mcinspector.packets.PacketCapture.store.clear() }
         mod.keybind("mcp_panel", GLFW.GLFW_KEY_I) { status.toggle() }
         mod.keybind("packets_panel", GLFW.GLFW_KEY_O) { packets.toggle() }
+
+        // Capture control keys — usable mid-game without opening the overlay; feedback on the action bar.
+        val store = dev.harrison.mcinspector.packets.PacketCapture.store
+        mod.keybind("capture_toggle", GLFW.GLFW_KEY_F8) {
+            store.paused = !store.paused
+            toast(if (store.paused) "Packet capture stopped (${store.size()} buffered)" else "Packet capture started")
+        }
+        mod.keybind("capture_mark", GLFW.GLFW_KEY_F9) {
+            val m = store.mark("mark ${++markCounter}", dev.harrison.mcinspector.mcp.TickScheduler.tick)
+            toast("Marker #${m.id} \"${m.type.removePrefix("marker:")}\"")
+        }
+        mod.keybind("capture_clear", GLFW.GLFW_KEY_UNKNOWN) { store.clear(); toast("Packet buffer cleared") }
+        mod.keybind("capture_export", GLFW.GLFW_KEY_UNKNOWN) {
+            val dir = net.fabricmc.loader.api.FabricLoader.getInstance().gameDir.resolve("packet-exports")
+            val fmt = dev.harrison.mcinspector.packets.PacketExport.Format.JSONL
+            val r = dev.harrison.mcinspector.packets.PacketExport.export(store.query(dev.harrison.mcinspector.packets.PacketQuery(limit = Int.MAX_VALUE, newestFirst = false)), fmt, dev.harrison.mcinspector.packets.PacketExport.defaultPath(dir, fmt))
+            toast("Exported ${r.records} packets → ${r.path.fileName}")
+        }
     }
 
     private fun renderStatus() {
