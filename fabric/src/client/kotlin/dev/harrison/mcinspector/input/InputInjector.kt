@@ -26,7 +26,10 @@ object InputInjector {
         "never" -> false
         else -> System.currentTimeMillis() - lastInjectedAt > AUTO_WINDOW_MS
     }
-    private fun touch() { lastInjectedAt = System.currentTimeMillis() }
+    private fun touch() {
+        lastInjectedAt = System.currentTimeMillis()
+        runCatching { dev.harrison.panellib.PanelLib.api().markSyntheticInput() }
+    }
 
     private val mc get() = Minecraft.getInstance()
     private val kb get() = mc.keyboardHandler as KeyboardHandlerAccessor
