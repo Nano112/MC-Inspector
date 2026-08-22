@@ -110,18 +110,22 @@ class PacketsClearTool : Tool {
 
 class PacketsCaptureTool : Tool {
     override val name = "packets_capture"
-    override val description = "Control capture: pause/resume and set exclude patterns (regexes on type id) to drop noisy packets such as \"set_time|keep_alive|move_player\"."
+    override val description = "Control capture: start/stop (capture is OFF at launch unless config packet_capture=true; rules run regardless), exclude patterns (regexes on type id) to drop noisy packets such as \"set_time|keep_alive|move_player\", buffer size."
     override val inputSchema = schema(
         "paused" to prop("boolean", "Pause (true) or resume (false) capture."),
         "exclude" to prop("array", "Replace the exclude list with these regexes (empty array clears).").apply { add("items", prop("string", "regex")) },
         "serverSide" to prop("boolean", "Also capture the integrated server's connections in singleplayer (default false)."),
+        "capacity" to prop("integer", "Rolling buffer size in records (100-200000; config packet_buffer, default 5000)."),
+        "retain" to prop("integer", "How many newest records keep the live packet object (older ones are materialised to JSON; config packet_retain)."),
     )
     override fun call(args: JsonObject): ToolResult {
         val store = PacketCapture.store
         args.bool("paused")?.let { store.paused = it }
         args.bool("serverSide")?.let { store.captureServerSide = it }
+        args.int("capacity")?.let { store.resize(it) }
+        args.int("retain")?.let { store.retain = it.coerceIn(50, store.capacity) }
         if (args.has("exclude")) store.excludes = args.strList("exclude").map { Regex(it, RegexOption.IGNORE_CASE) }
-        return ToolResult.json(obj { "paused" to store.paused; "serverSide" to store.captureServerSide; "excludes" to JsonArray().apply { store.excludes.forEach { add(JsonPrimitive(it.pattern)) } } })
+        return ToolResult.json(obj { "paused" to store.paused; "serverSide" to store.captureServerSide; "capacity" to store.capacity; "retain" to store.retain; "excludes" to JsonArray().apply { store.excludes.forEach { add(JsonPrimitive(it.pattern)) } } })
     }
 }
 

@@ -24,8 +24,11 @@ Minecraft 1.21.8 – 1.21.11, 26.1, 26.2 · Fabric · Kotlin · MIT
 Drop the jar for your Minecraft version from [Releases](https://github.com/Nano112/MC-Inspector/releases) into
 `mods/` — panel-lib and the JS engine are bundled. Requires Fabric API + Fabric Language Kotlin.
 
-Config `config/mcinspector.json`: `port`, `auth_token`, `screenshot_scale`, `enabled`, `lock_cursor`
-(default `false`: the game never locks your OS cursor while the host runs — set `true` when you play yourself).
+Config `config/mcinspector.json`: `port`, `auth_token`, `screenshot_scale`, `enabled`, `cursor_lock`
+(`auto` default: vanilla cursor lock except for a few seconds after the agent injected input; `always` / `never`),
+`packet_capture` (default `false` — recording starts only when you press Start / `packets_capture {paused:false}`;
+rules run regardless), `packet_buffer` (rolling window, default 5000), `packet_retain` (newest records keeping live
+packet objects, default 1000; older ones are materialised to JSON so memory stays bounded).
 
 ## Connect an agent
 

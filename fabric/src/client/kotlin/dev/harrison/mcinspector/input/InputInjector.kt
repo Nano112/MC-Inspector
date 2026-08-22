@@ -14,8 +14,19 @@ import net.minecraft.client.Minecraft
 object InputInjector {
     /** When true, Minecraft.isWindowActive() reports true regardless of OS focus (see MinecraftWindowActiveMixin). */
     @JvmField @Volatile var forceWindowActive: Boolean = false
-    /** When false (default while hosting), MC never locks/hides the OS cursor (see MouseGrabMixin). */
-    @JvmField @Volatile var lockCursor: Boolean = true
+    /** Cursor-lock policy, see [InspectorConfig.cursorLock]: "always" | "never" | "auto". */
+    @JvmField @Volatile var cursorLock: String = "auto"
+    /** Epoch ms of the last injected input (auto mode keeps the OS cursor free for a few seconds after it). */
+    @JvmField @Volatile var lastInjectedAt: Long = 0
+    const val AUTO_WINDOW_MS = 8_000L
+
+    /** Should MouseHandler.grabMouse really lock/hide the OS cursor right now? */
+    @JvmStatic fun shouldLockCursor(): Boolean = when (cursorLock) {
+        "always" -> true
+        "never" -> false
+        else -> System.currentTimeMillis() - lastInjectedAt > AUTO_WINDOW_MS
+    }
+    private fun touch() { lastInjectedAt = System.currentTimeMillis() }
 
     private val mc get() = Minecraft.getInstance()
     private val kb get() = mc.keyboardHandler as KeyboardHandlerAccessor
@@ -33,6 +44,7 @@ object InputInjector {
     fun keyUp(key: Int, mods: Int = 0) = keyAction(key, KeyNames.RELEASE, mods)
 
     private fun keyAction(key: Int, action: Int, mods: Int) {
+        touch()
         //? if >=1.21.9 {
         kb.`mcinspector$keyPress`(window(), action, net.minecraft.client.input.KeyEvent(key, 0, mods))
         //?} else {
@@ -41,6 +53,7 @@ object InputInjector {
     }
 
     fun char(codepoint: Int, mods: Int = 0) {
+        touch()
         //? if >=26.1 {
         /*kb.`mcinspector$charTyped`(window(), net.minecraft.client.input.CharacterEvent(codepoint))
         *///?} elif >=1.21.9 {
@@ -50,12 +63,13 @@ object InputInjector {
         *///?}
     }
 
-    fun mouseMove(x: Double, y: Double) = mouse.`mcinspector$onMove`(window(), x, y)
+    fun mouseMove(x: Double, y: Double) { touch(); mouse.`mcinspector$onMove`(window(), x, y) }
 
     fun mouseDown(button: Int, mods: Int = 0) = mouseAction(button, KeyNames.PRESS, mods)
     fun mouseUp(button: Int, mods: Int = 0) = mouseAction(button, KeyNames.RELEASE, mods)
 
     private fun mouseAction(button: Int, action: Int, mods: Int) {
+        touch()
         //? if >=1.21.9 {
         mouse.`mcinspector$onButton`(window(), net.minecraft.client.input.MouseButtonInfo(button, mods), action)
         //?} else {
@@ -63,7 +77,7 @@ object InputInjector {
         *///?}
     }
 
-    fun scroll(dx: Double, dy: Double) = mouse.`mcinspector$onScroll`(window(), dx, dy)
+    fun scroll(dx: Double, dy: Double) { touch(); mouse.`mcinspector$onScroll`(window(), dx, dy) }
 
     /** Directly set the KeyMapping state so gameplay bindings (movement, sneak) engage while held. */
     fun keyMappingSet(key: Int, down: Boolean) {

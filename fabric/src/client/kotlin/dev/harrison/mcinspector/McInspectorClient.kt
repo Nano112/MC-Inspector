@@ -34,7 +34,8 @@ object McInspectorClient : ClientModInitializer {
             return
         }
         InputInjector.forceWindowActive = true
-        InputInjector.lockCursor = config.lockCursor
+        InputInjector.cursorLock = config.cursorLock
+        dev.harrison.mcinspector.packets.PacketCapture.configure(config)
         val registry = ToolRegistry()
         Tools.registerAll(registry, config, logs)
         val version = loader.getModContainer(MOD_ID).map { it.metadata.version.friendlyString }.orElse("dev")

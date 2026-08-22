@@ -1,29 +1,37 @@
 package dev.harrison.mcinspector.packets
 
+import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicLong
 
 /** Query parameters shared by the MCP tool and the panel. */
 data class PacketQuery(
     val direction: Direction? = null,
     val side: Side? = null,
-    /** Regex also applied to the decoded fields (lazy decode; slower). */
-    val deep: Regex? = null,
     val phase: Phase? = null,
     val type: Regex? = null,
+    /** Regex also applied to the decoded fields (lazy decode; slower). */
+    val deep: Regex? = null,
     val sinceId: Long = 0,
     val limit: Int = 200,
     val newestFirst: Boolean = true,
 )
 
 /**
- * Thread-safe ring buffer of captured packets plus per-type counters, pause flag and exclude patterns.
- * Recording is cheap (no decoding); consumers snapshot via [query].
+ * Thread-safe rolling buffer of captured packets plus counters, pause flag, exclude patterns and
+ * per-second history for charts. Recording is cheap (no decoding); consumers snapshot via [query].
+ *
+ * Memory is bounded: only the newest [retain] records keep their live packet object; older ones are
+ * materialised (decoded to JSON) on a background thread and the reference is dropped.
  */
-class PacketStore(val capacity: Int = 5000) {
+class PacketStore(capacity: Int = 5000, retain: Int = 1000) {
     private val lock = Any()
     private val ring = ArrayDeque<PacketRecord>(capacity)
     private val ids = AtomicLong()
     private val counts = HashMap<String, Long>()
+
+    @Volatile var capacity: Int = capacity
+        private set
+    @Volatile var retain: Int = retain
     @Volatile var paused: Boolean = false
     /** Also record the integrated server's connections (singleplayer). Off by default. */
     @Volatile var captureServerSide: Boolean = false
@@ -31,15 +39,38 @@ class PacketStore(val capacity: Int = 5000) {
     @Volatile var totalSeen: Long = 0; private set
     @Volatile var dropped: Long = 0; private set
 
+    // ---- background materialisation of records leaving the "hot" zone
+    private val toMaterialise = LinkedBlockingQueue<PacketRecord>()
+    init {
+        Thread({
+            while (true) {
+                val r = toMaterialise.take()
+                runCatching { r.materialise() }
+            }
+        }, "mcinspector-packet-materialiser").apply { isDaemon = true; priority = Thread.MIN_PRIORITY }.start()
+    }
+
     fun nextId(): Long = ids.incrementAndGet()
 
+    /** Change the rolling window size; trims immediately if smaller. */
+    fun resize(newCapacity: Int) {
+        val c = newCapacity.coerceIn(100, 200_000)
+        synchronized(lock) {
+            capacity = c
+            while (ring.size > c) { ring.removeFirst(); dropped++ }
+        }
+    }
+
     // ---- per-second history for graphs (120 s ring, indexed by epoch second)
-    class Bucket(@Volatile var sec: Long) { @Volatile var inCount = 0; @Volatile var outCount = 0 }
+    class Bucket(@Volatile var sec: Long) {
+        @Volatile var inCount = 0; @Volatile var outCount = 0
+        val byType = HashMap<String, Int>()
+    }
     private val history = Array(120) { Bucket(0) }
-    private fun bucket(sec: Long): Bucket = synchronized(history) {
+    private fun bucket(sec: Long): Bucket {
         val b = history[(sec % history.size).toInt()]
-        if (b.sec != sec) { b.sec = sec; b.inCount = 0; b.outCount = 0 }
-        b
+        if (b.sec != sec) { b.sec = sec; b.inCount = 0; b.outCount = 0; b.byType.clear() }
+        return b
     }
     /** (inCounts, outCounts) for the last [seconds] seconds, oldest first. */
     fun history(seconds: Int = 60): Pair<FloatArray, FloatArray> {
@@ -54,6 +85,20 @@ class PacketStore(val capacity: Int = 5000) {
         }
         return ins to outs
     }
+    /** Per-second counts per type for the last [seconds] seconds (oldest first), restricted to [types]. */
+    fun historyByType(seconds: Int, types: List<String>): Map<String, IntArray> {
+        val now = System.currentTimeMillis() / 1000
+        val out = types.associateWith { IntArray(seconds) }
+        synchronized(history) {
+            for (i in 0 until seconds) {
+                val sec = now - (seconds - 1 - i)
+                val b = history[(sec % history.size).toInt()]
+                if (b.sec != sec) continue
+                for (t in types) out[t]!![i] = b.byType[t] ?: 0
+            }
+        }
+        return out
+    }
 
     /** Returns false when the packet was excluded/paused (callers can skip building the record). */
     fun accepts(type: String): Boolean {
@@ -62,12 +107,21 @@ class PacketStore(val capacity: Int = 5000) {
         return ex.isEmpty() || ex.none { it.containsMatchIn(type) }
     }
 
-    fun add(rec: PacketRecord) = synchronized(lock) {
-        if (ring.size >= capacity) { ring.removeFirst(); dropped++ }
-        ring.addLast(rec)
-        totalSeen++
-        counts.merge(rec.type, 1L, Long::plus)
-        if (!rec.isMarker) { val b = bucket(rec.epochMs / 1000); if (rec.dir == Direction.IN) b.inCount++ else b.outCount++ }
+    fun add(rec: PacketRecord) {
+        var cooled: PacketRecord? = null
+        synchronized(lock) {
+            if (ring.size >= capacity) { ring.removeFirst(); dropped++ }
+            ring.addLast(rec)
+            totalSeen++
+            counts.merge(rec.type, 1L, Long::plus)
+            if (!rec.isMarker) synchronized(history) {
+                val b = bucket(rec.epochMs / 1000)
+                if (rec.dir == Direction.IN) b.inCount++ else b.outCount++
+                b.byType.merge(rec.type, 1, Int::plus)
+            }
+            if (ring.size > retain) cooled = ring.elementAt(ring.size - retain - 1)
+        }
+        cooled?.let { if (!it.materialised) toMaterialise.offer(it) }
     }
 
     fun get(id: Long): PacketRecord? = synchronized(lock) { ring.firstOrNull { it.id == id } }
@@ -119,8 +173,7 @@ class PacketStore(val capacity: Int = 5000) {
             .filter { q.type == null || q.type.containsMatchIn(it.type) || q.type.containsMatchIn(it.cls) }
             .filter { q.deep == null || it.isMarker || q.deep.containsMatchIn(it.type) || q.deep.containsMatchIn(it.summary) || q.deep.containsMatchIn(it.fields.toString()) }
         val list = seq.toList()
-        val limited = if (q.newestFirst) list.takeLast(q.limit).asReversed() else list.take(q.limit)
-        return limited
+        return if (q.newestFirst) list.takeLast(q.limit).asReversed() else list.take(q.limit)
     }
 
     fun size(): Int = synchronized(lock) { ring.size }
@@ -133,6 +186,15 @@ class PacketStore(val capacity: Int = 5000) {
         val m = HashMap<String, Long>()
         for (r in snapshot) r.size?.let { m.merge(r.type, it.toLong(), Long::plus) }
         return m
+    }
+
+    /** Size distribution of buffered network packets: bucket upper bounds in bytes → count. */
+    fun sizeHistogram(): List<Pair<Int, Int>> {
+        val bounds = intArrayOf(16, 32, 64, 128, 256, 512, 1024, 4096, 16384, 65536, Int.MAX_VALUE)
+        val counts = IntArray(bounds.size)
+        val snapshot = synchronized(lock) { ring.toList() }
+        for (r in snapshot) { val s = r.size ?: continue; counts[bounds.indexOfFirst { s <= it }]++ }
+        return bounds.zip(counts.toList())
     }
 
     fun clear() = synchronized(lock) { ring.clear(); counts.clear(); totalSeen = 0; dropped = 0 }

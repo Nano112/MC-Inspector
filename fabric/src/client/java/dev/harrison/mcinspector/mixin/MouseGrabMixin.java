@@ -11,10 +11,10 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * While the MCP host drives the game (config {@code lock_cursor=false}, the default), never lock or
- * hide the OS cursor: the agent's look input is injected at the MouseHandler level, and the human
- * sharing the machine must keep their mouse. We still flip the {@code mouseGrabbed} flag so MC
- * routes movement to the camera exactly as if the cursor were captured.
+ * Cursor-lock policy (config {@code cursor_lock}: always | never | auto). In "auto" (default) the OS
+ * cursor is locked like vanilla, EXCEPT for a few seconds after the MCP host injected input — then the
+ * grab is "soft": {@code mouseGrabbed} is set so the camera follows injected look deltas, but the human's
+ * cursor stays free. A click from the panel-lib overlay (game focus) always grabs for real.
  */
 @Mixin(MouseHandler.class)
 public abstract class MouseGrabMixin {
@@ -25,7 +25,7 @@ public abstract class MouseGrabMixin {
 
     @Inject(method = "grabMouse", at = @At("HEAD"), cancellable = true)
     private void mcinspector$softGrab(CallbackInfo ci) {
-        if (InputInjector.lockCursor) return;
+        if (InputInjector.shouldLockCursor()) return;
         // A human clicking the game area inside the panel-lib overlay wants a REAL grab (hidden, locked cursor).
         if (dev.harrison.panellib.framework.Overlay.isGameFocus()) return;
         if (!this.mouseGrabbed) {

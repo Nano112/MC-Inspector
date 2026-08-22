@@ -35,9 +35,23 @@ class PacketRecord(
     val type: String,
     val cls: String,
     val phase: Phase,
-    private val packet: Any?,
+    packet: Any?,
     private val decoder: (Any?) -> JsonElement,
 ) {
+    /** Live packet object; dropped once the record is materialised (bounded memory). */
+    @Volatile private var packet: Any? = packet
+    @Volatile var materialised: Boolean = false
+        private set
+
+    /** Decode now and release the packet reference (background thread). */
+    fun materialise() {
+        fields; summary
+        packet = null
+        materialised = true
+    }
+
+    /** The live packet, if still retained (rules/held packets keep their own reference). */
+    val livePacket: Any? get() = packet
     /** Wire size in bytes (payload after the packet id); null for in-memory connections or until the encoder ran. */
     @Volatile var size: Int? = null
     /** First bytes of the wire payload (network connections only, capped by PacketSizes.RAW_CAP). */

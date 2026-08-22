@@ -239,13 +239,15 @@ _No arguments._
 
 ### packets_capture
 
-Control capture: pause/resume and set exclude patterns (regexes on type id) to drop noisy packets such as "set_time|keep_alive|move_player".
+Control capture: start/stop (capture is OFF at launch unless config packet_capture=true; rules run regardless), exclude patterns (regexes on type id) to drop noisy packets such as "set_time|keep_alive|move_player", buffer size.
 
 | arg | type | description |
 |---|---|---|
 | `paused` | boolean | Pause (true) or resume (false) capture. |
 | `exclude` | array | Replace the exclude list with these regexes (empty array clears). |
 | `serverSide` | boolean | Also capture the integrated server's connections in singleplayer (default false). |
+| `capacity` | integer | Rolling buffer size in records (100-200000; config packet_buffer, default 5000). |
+| `retain` | integer | How many newest records keep the live packet object (older ones are materialised to JSON; config packet_retain). |
 
 ### packets_mark
 

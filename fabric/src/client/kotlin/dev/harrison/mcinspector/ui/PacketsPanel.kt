@@ -14,6 +14,7 @@ import dev.harrison.mcinspector.packets.RecordStatus
 import dev.harrison.mcinspector.packets.RuleAction
 import dev.harrison.panellib.theme.Icons
 import dev.harrison.panellib.theme.Theme
+import dev.harrison.panellib.widgets.Charts
 import dev.harrison.panellib.widgets.Widgets
 import imgui.ImGui
 import imgui.flag.ImGuiSelectableFlags
@@ -63,7 +64,7 @@ object PacketsPanel {
         Widgets.tabBar("##packets-tabs", listOf(
             "Live" to ::renderLive,
             "Types" to ::renderTypes,
-            "Graph" to ::renderGraph,
+            "Charts" to ::renderCharts,
             (if (held > 0) "Rules ($held held)###rules" else "Rules###rules") to ::renderRules,
         ))
     }
@@ -73,6 +74,13 @@ object PacketsPanel {
     private fun renderLive() {
         val store = PacketCapture.store
         val t = Theme.current
+
+        if (store.paused && store.size() == 0) {
+            Widgets.statusText("Capture is off (rules still run). Start it to record the rolling buffer of ${store.capacity} packets.", Widgets.Tone.INFO)
+            ImGui.sameLine()
+            if (Widgets.primaryButton("${Icons.PLAY}  Start capture")) store.paused = false
+            ImGui.spacing()
+        }
 
         if (Widgets.toggleButton(if (store.paused) "${Icons.PLAY}  Resume" else "${Icons.PAUSE}  Pause", store.paused)) store.paused = !store.paused
         ImGui.sameLine()
@@ -244,28 +252,66 @@ object PacketsPanel {
         }
     }
 
-    // ------------------------------------------------------------------ Graph
+    // ------------------------------------------------------------------ Charts
 
-    private fun renderGraph() {
+    private var pieByBytes = false
+    private var windowSeconds = 60
+    private val bufferSize = ImString(8)
+
+    private fun renderCharts() {
         val store = PacketCapture.store
-        val (ins, outs) = store.history(60)
-        val maxIn = ins.maxOrNull() ?: 0f; val maxOut = outs.maxOrNull() ?: 0f
         val w = ImGui.getContentRegionAvailX()
-        Widgets.label("inbound packets / s (last 60 s)")
-        ImGui.plotHistogram("##in", ins, ins.size, 0, "now: ${ins.last().toInt()}/s · peak ${maxIn.toInt()}", 0f, maxOf(maxIn, 1f), w, 90f)
-        Widgets.label("outbound packets / s")
-        ImGui.plotHistogram("##out", outs, outs.size, 0, "now: ${outs.last().toInt()}/s · peak ${maxOut.toInt()}", 0f, maxOf(maxOut, 1f), w, 70f)
-        Widgets.sectionHeader("Top types · last 5 s")
-        val rates = store.rates().entries.sortedByDescending { it.value.first }.take(12)
-        val top = rates.firstOrNull()?.value?.first ?: 1.0
-        val t = Theme.current
-        for ((type, v) in rates) {
-            val x = ImGui.getCursorScreenPosX(); val y = ImGui.getCursorScreenPosY()
-            val barW = (w * 0.55f * (v.first / top)).toFloat()
-            ImGui.getWindowDrawList().addRectFilled(x, y + 2f, x + barW, y + ImGui.getTextLineHeight() - 2f, ImGui.getColorU32(t.accent.x, t.accent.y, t.accent.z, 0.35f), 3f)
-            ImGui.text("  " + type.removePrefix("minecraft:"))
-            ImGui.sameLine(w * 0.58f); Widgets.muted("%.1f/s".format(v.first) + if (v.second > 0) "  %s/s".format(human(v.second.toLong())) else "")
+
+        // ---- capture window settings
+        Widgets.label("capture window")
+        ImGui.text("${store.size()} / ${store.capacity} records · ${store.retain} newest keep live objects · ${store.totalSeen} seen · ${store.dropped} evicted")
+        if (bufferSize.get().isEmpty()) bufferSize.set(store.capacity.toString())
+        Widgets.textField("##buf", bufferSize, "records", width = 90f)
+        ImGui.sameLine()
+        if (Widgets.secondaryButton("Apply size")) bufferSize.get().toIntOrNull()?.let { store.resize(it); bufferSize.set(store.capacity.toString()) }
+        ImGui.sameLine()
+        for (n in listOf(1000, 5000, 20000, 50000)) { if (Widgets.ghostButton("${n / 1000}k")) { store.resize(n); bufferSize.set(n.toString()) }; ImGui.sameLine(0f, 2f) }
+        ImGui.newLine()
+
+        // ---- pie: share by count / bytes
+        Widgets.sectionHeader("Share by type")
+        if (Widgets.toggleButton("count", !pieByBytes)) pieByBytes = false
+        ImGui.sameLine(0f, 2f); if (Widgets.toggleButton("bytes", pieByBytes)) pieByBytes = true
+        val source = if (pieByBytes) store.bytesStats() else store.stats()
+        val sorted = source.entries.filter { !it.key.startsWith("marker:") }.sortedByDescending { it.value }
+        val top = sorted.take(9)
+        val other = sorted.drop(9).sumOf { it.value }
+        val slices = top.map { Charts.Slice(it.key.removePrefix("minecraft:"), it.value.toDouble(), Charts.colorFor(it.key)) } +
+            (if (other > 0) listOf(Charts.Slice("other", other.toDouble(), Theme.current.textFaint)) else emptyList())
+        Charts.pie("##pie", slices, radius = 58f)
+
+        // ---- stacked bars over time
+        Widgets.sectionHeader("Packets per second · top types")
+        for (sec in listOf(30, 60, 120)) { if (Widgets.toggleButton("${sec}s", windowSeconds == sec)) windowSeconds = sec; ImGui.sameLine(0f, 2f) }
+        ImGui.newLine()
+        val rateTypes = store.rates(windowSeconds * 1000L).entries.sortedByDescending { it.value.first }.map { it.key }
+        val shown = rateTypes.take(6)
+        val hist = store.historyByType(windowSeconds, rateTypes)
+        val series = ArrayList<Pair<String, FloatArray>>()
+        for (t in shown) series += t.removePrefix("minecraft:") to FloatArray(windowSeconds) { hist[t]!![it].toFloat() }
+        if (rateTypes.size > shown.size) {
+            val rest = FloatArray(windowSeconds); for (t in rateTypes.drop(shown.size)) { val a = hist[t]!!; for (i in 0 until windowSeconds) rest[i] += a[i] }
+            series += "other" to rest
         }
+        val colors = HashMap<String, imgui.ImVec4>().apply { shown.forEach { put(it.removePrefix("minecraft:"), Charts.colorFor(it)) }; put("other", Theme.current.textFaint) }
+        val (ins, outs) = store.history(windowSeconds)
+        Charts.stackedBars("##stack", series, colors, w, 120f, "now ${(ins.last() + outs.last()).toInt()}/s · IN ${ins.last().toInt()} · OUT ${outs.last().toInt()}")
+
+        // ---- size distribution (network connections only)
+        Widgets.sectionHeader("Packet size distribution")
+        val hist2 = store.sizeHistogram()
+        if (hist2.all { it.second == 0 }) Widgets.faint("no wire sizes yet (singleplayer is in-memory; connect to a server)")
+        else Charts.vbars("##sizes", hist2.map { if (it.first == Int.MAX_VALUE) ">64K" else if (it.first >= 1024) "<${it.first / 1024}K" else "<${it.first}" }, hist2.map { it.second.toDouble() }, w, 110f, Theme.current.info)
+
+        // ---- rates list
+        Widgets.sectionHeader("Rates · last 5 s")
+        val rates = store.rates().entries.sortedByDescending { it.value.first }.take(10)
+        Charts.hbars(rates.map { Triple(it.key.removePrefix("minecraft:"), it.value.first, Charts.colorFor(it.key)) }, w) { "%.1f/s".format(it) }
     }
 
     // ------------------------------------------------------------------ Rules / breakpoints

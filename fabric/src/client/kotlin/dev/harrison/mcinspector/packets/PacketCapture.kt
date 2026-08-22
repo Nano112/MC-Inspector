@@ -9,6 +9,13 @@ import net.minecraft.network.protocol.PacketFlow
 object PacketCapture {
     @JvmField val store = PacketStore()
 
+    /** Apply the config at startup: capture off by default, buffer/retain sizes. */
+    fun configure(cfg: dev.harrison.mcinspector.config.InspectorConfig) {
+        store.resize(cfg.packetBuffer)
+        store.retain = cfg.packetRetain.coerceIn(50, cfg.packetBuffer)
+        store.paused = !cfg.packetCapture
+    }
+
     /** @return true when the original delivery must be cancelled (dropped, held, or replaced). */
     @JvmStatic
     fun onInbound(conn: Connection, packet: Packet<*>): Boolean = handle(conn, packet, Direction.IN, null, false)
