@@ -17,6 +17,8 @@ import dev.harrison.mcinspector.packets.Direction
 import dev.harrison.mcinspector.packets.PacketCapture
 import dev.harrison.mcinspector.packets.PacketQuery
 import dev.harrison.mcinspector.packets.PacketRecord
+import dev.harrison.mcinspector.packets.PacketRules
+import dev.harrison.mcinspector.packets.RuleAction
 import dev.harrison.mcinspector.packets.Phase
 import dev.harrison.mcinspector.packets.Side
 import java.time.Instant
@@ -28,6 +30,8 @@ private val TS = DateTimeFormatter.ofPattern("HH:mm:ss.SSS").withZone(ZoneId.sys
 private fun row(r: PacketRecord): JsonObject = obj {
     "id" to r.id; "time" to TS.format(Instant.ofEpochMilli(r.epochMs)); "tick" to r.tick
     "dir" to r.dir.name; "side" to r.side.name; "phase" to r.phase.name; "type" to r.type; "class" to r.cls; "bytes" to r.size; "summary" to r.summary
+    if (r.status != dev.harrison.mcinspector.packets.RecordStatus.NORMAL) "status" to r.status.name
+    if (r.ruleHits.isNotEmpty()) "rules" to JsonArray().apply { r.ruleHits.forEach { add(JsonPrimitive(it)) } }
 }
 
 class PacketsListTool : Tool {
@@ -40,6 +44,7 @@ class PacketsListTool : Tool {
         "side" to prop("string", "CLIENT (default: only client-side connections are captured) or SERVER (integrated server, needs packets_capture {serverSide:true}).", enum = listOf("CLIENT", "SERVER")),
         "phase" to prop("string", "Protocol phase", enum = Phase.entries.map { it.name }),
         "type" to prop("string", "Regex matched against the packet type id (e.g. minecraft:move_player_pos) or class name."),
+        "deep" to prop("string", "Regex also matched against summary + decoded fields (slower)."),
         "since" to prop("integer", "Only packets with id > since."),
         "newestFirst" to prop("boolean", "Default true."),
     )
@@ -49,6 +54,7 @@ class PacketsListTool : Tool {
             side = args.str("side")?.let { Side.valueOf(it.uppercase()) },
             phase = args.str("phase")?.let { Phase.valueOf(it.uppercase()) },
             type = args.str("type")?.let { Regex(it, RegexOption.IGNORE_CASE) },
+            deep = args.str("deep")?.let { Regex(it, RegexOption.IGNORE_CASE) },
             sinceId = args.int("since")?.toLong() ?: 0,
             limit = (args.int("limit") ?: 50).coerceIn(1, 500),
             newestFirst = args.bool("newestFirst") ?: true,
@@ -187,5 +193,69 @@ class PacketsDiffTool : Tool {
             ?: return ToolResult.json(obj { "id" to b.id; "type" to b.type; "against" to null; "changes" to JsonArray(); "note" to "no earlier packet of this type in the buffer" })
         val changes = dev.harrison.mcinspector.packets.JsonDiff.diff(a.fields, b.fields)
         return ToolResult.json(obj { "id" to b.id; "against" to a.id; "type" to b.type; "changed" to changes.size; "changes" to dev.harrison.mcinspector.packets.JsonDiff.toJson(changes) })
+    }
+}
+
+class PacketsRulesTool : Tool {
+    override val name = "packets_rules"
+    override val description = """Breakpoints and rewriting. Rules run for every packet BEFORE it is delivered/sent.
+Actions: LOG (tag the record), DROP (swallow), PAUSE (hold until packets_release — a breakpoint), SCRIPT (JS handler).
+`script` is a JS expression/program with globals: packet, type, dir ("IN"/"OUT"), id, get(packet,"field"), set(packet,"field",value) → rewritten packet
+(records are copied), drop(), hold(), log(...), Packages.* / importClass. For LOG/DROP/PAUSE the script is an optional CONDITION (truthy = match);
+for SCRIPT, returning a packet object replaces the original. Examples:
+  {op:"add", name:"no-time", direction:"IN", type:"set_time", action:"DROP"}
+  {op:"add", name:"freeze-health", direction:"IN", type:"set_health", action:"SCRIPT", script:"set(packet, 'health', 20.0)"}
+  {op:"add", name:"bp-chat", direction:"OUT", type:"^minecraft:chat$", action:"PAUSE", script:"get(packet,'message').indexOf('!') == 0"}
+  {op:"add", name:"teleport-log", type:"player_position", action:"SCRIPT", script:"log(get(packet,'change')); undefined"}""".trimIndent()
+    override val inputSchema = schema(
+        "op" to prop("string", "list | add | remove | enable | disable | clear", enum = listOf("list", "add", "remove", "enable", "disable", "clear")),
+        "id" to prop("integer", "Rule id for remove/enable/disable."),
+        "name" to prop("string", "Rule name (add)."),
+        "direction" to prop("string", "IN or OUT (add; omit = both)", enum = listOf("IN", "OUT")),
+        "type" to prop("string", "Regex on type id / class (add; omit = all)."),
+        "action" to prop("string", "LOG | DROP | PAUSE | SCRIPT (add)", enum = RuleAction.entries.map { it.name }),
+        "script" to prop("string", "JS handler or condition (add)."),
+        required = listOf("op"),
+    )
+    override fun call(args: JsonObject): ToolResult {
+        when (args.require("op")) {
+            "list" -> {}
+            "add" -> {
+                val r = PacketRules.add(args.str("name") ?: "rule", args.str("direction")?.let { Direction.valueOf(it.uppercase()) }, args.str("type"),
+                    RuleAction.valueOf((args.str("action") ?: "LOG").uppercase()), args.str("script"))
+                return ToolResult.json(obj { "added" to r.toJson(); "rules" to PacketRules.toJson() })
+            }
+            "remove" -> if (!PacketRules.remove(args.int("id") ?: -1)) throw IllegalArgumentException("no rule ${args.int("id")}")
+            "enable", "disable" -> (PacketRules.get(args.int("id") ?: -1) ?: throw IllegalArgumentException("no rule ${args.int("id")}")).enabled = args.require("op") == "enable"
+            "clear" -> PacketRules.clear()
+        }
+        return ToolResult.json(obj { "rules" to PacketRules.toJson(); "held" to PacketRules.heldCount() })
+    }
+}
+
+class PacketsHeldTool : Tool {
+    override val name = "packets_held"
+    override val description = "Packets currently stopped at a PAUSE breakpoint (with decoded fields), oldest first."
+    override val inputSchema = schema("fields" to prop("boolean", "Include decoded fields (default true)."))
+    override fun call(args: JsonObject): ToolResult {
+        val withFields = args.bool("fields") ?: true
+        return ToolResult.json(obj {
+            "count" to PacketRules.heldCount()
+            "held" to JsonArray().apply { PacketRules.heldList().forEach { h -> add(row(h.record).apply { addProperty("rule", h.rule.name); if (withFields) add("fields", h.record.fields) }) } }
+        })
+    }
+}
+
+class PacketsReleaseTool : Tool {
+    override val name = "packets_release"
+    override val description = "Resume (deliver/send) or drop held packets: one by id, or all. Resumed inbound packets are handled on the game thread as usual."
+    override val inputSchema = schema("id" to prop("integer", "Held packet id (omit with all=true)."), "all" to prop("boolean", "Release every held packet."), "drop" to prop("boolean", "Drop instead of resuming (default false)."))
+    override fun call(args: JsonObject): ToolResult {
+        val drop = args.bool("drop") ?: false
+        val n = if (args.bool("all") == true) PacketRules.releaseAll(drop) else {
+            val id = args.int("id")?.toLong() ?: throw IllegalArgumentException("id or all required")
+            if (PacketRules.release(id, drop)) 1 else throw IllegalArgumentException("no held packet $id")
+        }
+        return ToolResult.json(obj { (if (drop) "dropped" else "resumed") to n; "stillHeld" to PacketRules.heldCount() })
     }
 }

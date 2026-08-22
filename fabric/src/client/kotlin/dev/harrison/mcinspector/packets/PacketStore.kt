@@ -6,6 +6,8 @@ import java.util.concurrent.atomic.AtomicLong
 data class PacketQuery(
     val direction: Direction? = null,
     val side: Side? = null,
+    /** Regex also applied to the decoded fields (lazy decode; slower). */
+    val deep: Regex? = null,
     val phase: Phase? = null,
     val type: Regex? = null,
     val sinceId: Long = 0,
@@ -31,6 +33,28 @@ class PacketStore(val capacity: Int = 5000) {
 
     fun nextId(): Long = ids.incrementAndGet()
 
+    // ---- per-second history for graphs (120 s ring, indexed by epoch second)
+    class Bucket(@Volatile var sec: Long) { @Volatile var inCount = 0; @Volatile var outCount = 0 }
+    private val history = Array(120) { Bucket(0) }
+    private fun bucket(sec: Long): Bucket = synchronized(history) {
+        val b = history[(sec % history.size).toInt()]
+        if (b.sec != sec) { b.sec = sec; b.inCount = 0; b.outCount = 0 }
+        b
+    }
+    /** (inCounts, outCounts) for the last [seconds] seconds, oldest first. */
+    fun history(seconds: Int = 60): Pair<FloatArray, FloatArray> {
+        val now = System.currentTimeMillis() / 1000
+        val ins = FloatArray(seconds); val outs = FloatArray(seconds)
+        synchronized(history) {
+            for (i in 0 until seconds) {
+                val sec = now - (seconds - 1 - i)
+                val b = history[(sec % history.size).toInt()]
+                if (b.sec == sec) { ins[i] = b.inCount.toFloat(); outs[i] = b.outCount.toFloat() }
+            }
+        }
+        return ins to outs
+    }
+
     /** Returns false when the packet was excluded/paused (callers can skip building the record). */
     fun accepts(type: String): Boolean {
         if (paused) return false
@@ -43,6 +67,7 @@ class PacketStore(val capacity: Int = 5000) {
         ring.addLast(rec)
         totalSeen++
         counts.merge(rec.type, 1L, Long::plus)
+        if (!rec.isMarker) { val b = bucket(rec.epochMs / 1000); if (rec.dir == Direction.IN) b.inCount++ else b.outCount++ }
     }
 
     fun get(id: Long): PacketRecord? = synchronized(lock) { ring.firstOrNull { it.id == id } }
@@ -92,6 +117,7 @@ class PacketStore(val capacity: Int = 5000) {
             .filter { q.side == null || it.side == q.side }
             .filter { q.phase == null || it.phase == q.phase }
             .filter { q.type == null || q.type.containsMatchIn(it.type) || q.type.containsMatchIn(it.cls) }
+            .filter { q.deep == null || it.isMarker || q.deep.containsMatchIn(it.type) || q.deep.containsMatchIn(it.summary) || q.deep.containsMatchIn(it.fields.toString()) }
         val list = seq.toList()
         val limited = if (q.newestFirst) list.takeLast(q.limit).asReversed() else list.take(q.limit)
         return limited

@@ -4,6 +4,7 @@
   "package": "dev.harrison.mcinspector.mixin",
   "compatibilityLevel": "${mixin_java}",
   "client": [
+    "ConnectionInvoker",
     "ConnectionMixin",
     "KeyboardHandlerAccessor",
     "MinecraftWindowActiveMixin",

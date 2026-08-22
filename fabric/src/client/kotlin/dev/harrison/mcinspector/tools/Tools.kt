@@ -17,7 +17,8 @@ object Tools {
         reg.register(CommandTool(), ConnectServerTool(), DisconnectTool(), ListServersTool(), WaitTool())
         // packets
         reg.register(PacketsListTool(), PacketsGetTool(), PacketsStatsTool(), PacketsClearTool(), PacketsCaptureTool(),
-            PacketsMarkTool(), PacketsSearchTool(), PacketsWatchTool(), PacketsDiffTool())
+            PacketsMarkTool(), PacketsSearchTool(), PacketsWatchTool(), PacketsDiffTool(),
+            PacketsRulesTool(), PacketsHeldTool(), PacketsReleaseTool())
         // composition
         reg.register(SequenceTool(reg), ScriptTool(reg))
     }

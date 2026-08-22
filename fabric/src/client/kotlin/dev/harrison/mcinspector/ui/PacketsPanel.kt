@@ -9,6 +9,9 @@ import dev.harrison.mcinspector.packets.JsonDiff
 import dev.harrison.mcinspector.packets.PacketCapture
 import dev.harrison.mcinspector.packets.PacketQuery
 import dev.harrison.mcinspector.packets.PacketRecord
+import dev.harrison.mcinspector.packets.PacketRules
+import dev.harrison.mcinspector.packets.RecordStatus
+import dev.harrison.mcinspector.packets.RuleAction
 import dev.harrison.panellib.theme.Icons
 import dev.harrison.panellib.theme.Theme
 import dev.harrison.panellib.widgets.Widgets
@@ -43,9 +46,26 @@ object PacketsPanel {
     private var filterError = false
     private var detailMode = 0 // 0 fields, 1 diff, 2 hex
     private var markerCounter = 0
+    private var deep = false
+
+    private val PRESETS = listOf(
+        "chat" to "chat|system_chat|disguised",
+        "entities" to "entity|add_mob|remove_entities|rotate_head",
+        "chunks" to "chunk|light_update|section_blocks",
+        "movement" to "move_player|player_position|set_entity_motion|move_entity|teleport",
+        "inventory" to "container|slot|set_carried|held_item|creative",
+        "world" to "block_update|block_event|level_event|sound|particle|explode",
+    )
+    private const val NOISE = "level_chunk|rotate_head|move_entity|set_entity_motion|client_tick_end|chunk_batch|light_update|set_entity_data|keep_alive|set_time"
 
     fun render() {
-        Widgets.tabBar("##packets-tabs", listOf("Live" to ::renderLive, "Types" to ::renderTypes))
+        val held = PacketRules.heldCount()
+        Widgets.tabBar("##packets-tabs", listOf(
+            "Live" to ::renderLive,
+            "Types" to ::renderTypes,
+            "Graph" to ::renderGraph,
+            (if (held > 0) "Rules ($held held)###rules" else "Rules###rules") to ::renderRules,
+        ))
     }
 
     // ------------------------------------------------------------------ Live
@@ -73,11 +93,20 @@ object PacketsPanel {
 
         Widgets.textField("##filter", filter, "filter type (regex), e.g. chat|move_player", width = -1f)
         updateFilter()
+        for ((i, preset) in PRESETS.withIndex()) {
+            if (i > 0) ImGui.sameLine(0f, 4f)
+            if (Widgets.toggleButton(preset.first, filter.get() == preset.second)) filter.set(if (filter.get() == preset.second) "" else preset.second)
+        }
+        ImGui.sameLine(0f, 4f)
+        if (Widgets.toggleButton("deep", deep)) deep = !deep
+        if (ImGui.isItemHovered()) ImGui.setTooltip("Also match the regex against decoded fields (slower)")
+        ImGui.sameLine(0f, 4f)
+        if (Widgets.ghostButton("${Icons.EYE}  hide noise")) store.excludes = store.excludes + Regex(NOISE, RegexOption.IGNORE_CASE)
         Widgets.faint("${store.size()} buffered · ${store.totalSeen} seen · ${store.dropped} dropped" + if (store.excludes.isNotEmpty()) " · ${store.excludes.size} excludes" else "")
         if (filterError) Widgets.statusText("invalid regex", Widgets.Tone.DANGER)
 
         val dir = when { showIn && showOut -> null; showIn -> Direction.IN; showOut -> Direction.OUT; else -> null }
-        var rows = store.query(PacketQuery(direction = dir, type = compiled, limit = MAX_ROWS, newestFirst = true)).asReversed()
+        var rows = store.query(PacketQuery(direction = dir, type = if (deep) null else compiled, deep = if (deep) compiled else null, limit = MAX_ROWS, newestFirst = true)).asReversed()
         if (!showIn && !showOut) rows = emptyList()
 
         val avail = ImGui.getContentRegionAvailY()
@@ -111,7 +140,16 @@ object PacketsPanel {
                 ImGui.tableNextColumn()
                 Widgets.colored(if (r.dir == Direction.IN) "IN" else "OUT", if (r.dir == Direction.IN) t.info else t.success)
                 ImGui.tableNextColumn(); Widgets.muted(r.size?.toString() ?: "–")
-                ImGui.tableNextColumn(); ImGui.text(r.type.removePrefix("minecraft:"))
+                ImGui.tableNextColumn()
+                when (r.status) {
+                    RecordStatus.DROPPED -> Widgets.colored("${Icons.XMARK} ${r.type.removePrefix("minecraft:")}", t.danger)
+                    RecordStatus.HELD -> Widgets.colored("${Icons.PAUSE} ${r.type.removePrefix("minecraft:")}", t.warning)
+                    RecordStatus.REPLACED -> Widgets.colored("${Icons.PEN} ${r.type.removePrefix("minecraft:")}", t.info)
+                    RecordStatus.RELEASED -> Widgets.colored("${Icons.PLAY} ${r.type.removePrefix("minecraft:")}", t.success)
+                    RecordStatus.LOGGED -> Widgets.colored("${Icons.TAG} ${r.type.removePrefix("minecraft:")}", t.accent)
+                    else -> ImGui.text(r.type.removePrefix("minecraft:"))
+                }
+                if (r.ruleHits.isNotEmpty() && ImGui.isItemHovered()) ImGui.setTooltip("rules: ${r.ruleHits.joinToString()}")
                 ImGui.tableNextColumn(); Widgets.muted(r.summary)
             }
             if (autoscroll && !store.paused && ImGui.getScrollY() >= ImGui.getScrollMaxY() - 40f) ImGui.setScrollHereY(1f)
@@ -204,6 +242,100 @@ object PacketsPanel {
             }
             ImGui.endTable()
         }
+    }
+
+    // ------------------------------------------------------------------ Graph
+
+    private fun renderGraph() {
+        val store = PacketCapture.store
+        val (ins, outs) = store.history(60)
+        val maxIn = ins.maxOrNull() ?: 0f; val maxOut = outs.maxOrNull() ?: 0f
+        val w = ImGui.getContentRegionAvailX()
+        Widgets.label("inbound packets / s (last 60 s)")
+        ImGui.plotHistogram("##in", ins, ins.size, 0, "now: ${ins.last().toInt()}/s · peak ${maxIn.toInt()}", 0f, maxOf(maxIn, 1f), w, 90f)
+        Widgets.label("outbound packets / s")
+        ImGui.plotHistogram("##out", outs, outs.size, 0, "now: ${outs.last().toInt()}/s · peak ${maxOut.toInt()}", 0f, maxOf(maxOut, 1f), w, 70f)
+        Widgets.sectionHeader("Top types · last 5 s")
+        val rates = store.rates().entries.sortedByDescending { it.value.first }.take(12)
+        val top = rates.firstOrNull()?.value?.first ?: 1.0
+        val t = Theme.current
+        for ((type, v) in rates) {
+            val x = ImGui.getCursorScreenPosX(); val y = ImGui.getCursorScreenPosY()
+            val barW = (w * 0.55f * (v.first / top)).toFloat()
+            ImGui.getWindowDrawList().addRectFilled(x, y + 2f, x + barW, y + ImGui.getTextLineHeight() - 2f, ImGui.getColorU32(t.accent.x, t.accent.y, t.accent.z, 0.35f), 3f)
+            ImGui.text("  " + type.removePrefix("minecraft:"))
+            ImGui.sameLine(w * 0.58f); Widgets.muted("%.1f/s".format(v.first) + if (v.second > 0) "  %s/s".format(human(v.second.toLong())) else "")
+        }
+    }
+
+    // ------------------------------------------------------------------ Rules / breakpoints
+
+    private val ruleName = ImString(64)
+    private val ruleType = ImString(128)
+    private val ruleScript = ImString(2048)
+    private var ruleDir = 0     // 0 both, 1 IN, 2 OUT
+    private var ruleAction = 0  // index into RuleAction
+    private var ruleError: String? = null
+
+    private fun renderRules() {
+        val t = Theme.current
+        // ---- held queue first: that is what you are waiting on when a breakpoint hits
+        val held = PacketRules.heldList()
+        if (held.isNotEmpty()) {
+            Widgets.statusText("${held.size} packet(s) held at a breakpoint", Widgets.Tone.WARNING)
+            ImGui.sameLine()
+            if (Widgets.primaryButton("${Icons.PLAY}  Resume all")) PacketRules.releaseAll(false)
+            ImGui.sameLine()
+            if (Widgets.dangerButton("${Icons.XMARK}  Drop all")) PacketRules.releaseAll(true)
+            if (ImGui.beginChild("##held", 0f, minOf(160f, 28f * held.size + 8f), true)) {
+                for (h in held) {
+                    ImGui.pushID(h.record.id.toInt())
+                    if (Widgets.ghostButton(Icons.PLAY)) PacketRules.release(h.record.id, false)
+                    ImGui.sameLine(); if (Widgets.ghostButton(Icons.XMARK)) PacketRules.release(h.record.id, true)
+                    ImGui.sameLine(); if (Widgets.ghostButton(Icons.EYE)) { selectedId = h.record.id }
+                    ImGui.sameLine(); Widgets.colored(h.dir.name, if (h.dir == Direction.IN) t.info else t.success)
+                    ImGui.sameLine(); ImGui.text(h.record.type.removePrefix("minecraft:"))
+                    ImGui.sameLine(); Widgets.muted(h.record.summary)
+                    ImGui.popID()
+                }
+            }
+            ImGui.endChild()
+            ImGui.spacing()
+        }
+
+        // ---- rule list
+        Widgets.sectionHeader("Rules")
+        val rules = PacketRules.rules
+        if (rules.isEmpty()) Widgets.muted("No rules. LOG tags packets, DROP swallows them, PAUSE is a breakpoint, SCRIPT runs JS that can rewrite/drop/hold.")
+        for (r in rules) {
+            ImGui.pushID(r.id)
+            if (Widgets.toggleButton(if (r.enabled) Icons.CHECK else "  ", r.enabled)) r.enabled = !r.enabled
+            ImGui.sameLine(); Widgets.semibold(r.name)
+            ImGui.sameLine(); Widgets.badge(r.action.name, when (r.action) { RuleAction.DROP -> Widgets.Tone.DANGER; RuleAction.PAUSE -> Widgets.Tone.WARNING; RuleAction.SCRIPT -> Widgets.Tone.INFO; RuleAction.LOG -> Widgets.Tone.NEUTRAL })
+            ImGui.sameLine(); Widgets.muted("${r.direction?.name ?: "IN+OUT"} · ${r.typeRegex?.pattern ?: "*"} · ${r.hits.get()} hits")
+            ImGui.sameLine(); if (Widgets.ghostButton("${Icons.TRASH}##del")) PacketRules.remove(r.id)
+            r.script?.let { Widgets.faint("   " + it.lineSequence().first().take(90)) }
+            r.lastError?.let { Widgets.statusText(it, Widgets.Tone.DANGER) }
+            ImGui.popID()
+        }
+
+        // ---- add rule
+        Widgets.sectionHeader("Add rule")
+        Widgets.textField("##rname", ruleName, "name", width = 140f); ImGui.sameLine()
+        if (Widgets.toggleButton("both", ruleDir == 0)) ruleDir = 0; ImGui.sameLine(0f, 2f)
+        if (Widgets.toggleButton("IN", ruleDir == 1)) ruleDir = 1; ImGui.sameLine(0f, 2f)
+        if (Widgets.toggleButton("OUT", ruleDir == 2)) ruleDir = 2
+        Widgets.textField("##rtype", ruleType, "type regex (empty = all), e.g. set_health", width = -1f)
+        for ((i, a) in RuleAction.entries.withIndex()) { if (i > 0) ImGui.sameLine(0f, 2f); if (Widgets.toggleButton(a.name, ruleAction == i)) ruleAction = i }
+        ImGui.inputTextMultiline("##rscript", ruleScript, -1f, 70f)
+        if (ImGui.isItemHovered()) ImGui.setTooltip(if (ruleAction == RuleAction.SCRIPT.ordinal) "JS: packet, type, dir, get(), set(packet,'field',v) → replacement, drop(), hold(), log()" else "optional JS condition, e.g. get(packet,'health') < 10")
+        if (Widgets.primaryButton("${Icons.BOLT}  Add rule")) {
+            ruleError = try {
+                PacketRules.add(ruleName.get().ifBlank { "rule ${PacketRules.rules.size + 1}" }, when (ruleDir) { 1 -> Direction.IN; 2 -> Direction.OUT; else -> null }, ruleType.get(), RuleAction.entries[ruleAction], ruleScript.get())
+                ruleName.set(""); ruleType.set(""); ruleScript.set(""); null
+            } catch (e: Throwable) { "${e::class.simpleName}: ${e.message}" }
+        }
+        ruleError?.let { Widgets.statusText(it, Widgets.Tone.DANGER) }
     }
 
     private fun human(b: Long): String = when {

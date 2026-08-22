@@ -42,6 +42,9 @@ class PacketRecord(
     @Volatile var size: Int? = null
     /** First bytes of the wire payload (network connections only, capped by PacketSizes.RAW_CAP). */
     @Volatile var raw: ByteArray? = null
+    /** Rules that matched this packet and what they did to it. */
+    val ruleHits: MutableList<String> = java.util.concurrent.CopyOnWriteArrayList()
+    @Volatile var status: RecordStatus = RecordStatus.NORMAL
     /** Markers are synthetic records inserted with `packets_mark` to delimit an action in the stream. */
     val isMarker: Boolean get() = phase == Phase.MARKER
     @Volatile private var decoded: JsonElement? = null

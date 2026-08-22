@@ -14,7 +14,9 @@ Minecraft 1.21.8 – 1.21.11, 26.1, 26.2 · Fabric · Kotlin · MIT
   one call, with `waitFor`), `packets_*`, and `exec_script` (JavaScript inside the client).
   Catalog: [docs/mcp-tools.md](docs/mcp-tools.md).
 - **Packet inspector**: every client↔server packet, both directions, all phases, singleplayer included — decoded
-  fields, byte sizes on real connections, regex filters, pause/exclude. Panel key **O**.
+  fields, byte sizes + hex on real connections, regex/deep filters with presets, markers, search, `packets_watch`,
+  diffs, rate graphs, and **rules**: breakpoints (`PAUSE` → hold, resume, drop), `DROP`, and JS `SCRIPT` rules that
+  can rewrite inbound/outbound packets (`set(packet, "health", 20)`). Panel key **O** (Live / Types / Graph / Rules tabs).
 - **MCP Host panel** (key **I**): port, tool-call counters. Overlay key **K** (panel-lib).
 
 ## Install

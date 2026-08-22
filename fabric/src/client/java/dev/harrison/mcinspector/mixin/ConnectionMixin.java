@@ -11,19 +11,20 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Packet capture at the Connection level: every inbound packet passes {@code channelRead0} and every
- * outbound packet passes {@code doSendPacket}, for network AND in-memory (singleplayer) pipelines.
+ * Packet capture + rules at the Connection level: every inbound packet passes {@code channelRead0} and
+ * every outbound packet passes {@code doSendPacket}, for network AND in-memory (singleplayer) pipelines.
+ * Rules may drop, hold or replace a packet, in which case the original call is cancelled.
  * Both signatures are identical on 1.21.8 through 26.2.
  */
 @Mixin(Connection.class)
 public abstract class ConnectionMixin {
-    @Inject(method = "channelRead0(Lio/netty/channel/ChannelHandlerContext;Lnet/minecraft/network/protocol/Packet;)V", at = @At("HEAD"))
+    @Inject(method = "channelRead0(Lio/netty/channel/ChannelHandlerContext;Lnet/minecraft/network/protocol/Packet;)V", at = @At("HEAD"), cancellable = true)
     private void mcinspector$inbound(ChannelHandlerContext ctx, Packet<?> packet, CallbackInfo ci) {
-        PacketCapture.onInbound((Connection) (Object) this, packet);
+        if (PacketCapture.onInbound((Connection) (Object) this, packet)) ci.cancel();
     }
 
-    @Inject(method = "doSendPacket", at = @At("HEAD"))
+    @Inject(method = "doSendPacket", at = @At("HEAD"), cancellable = true)
     private void mcinspector$outbound(Packet<?> packet, ChannelFutureListener listener, boolean flush, CallbackInfo ci) {
-        PacketCapture.onOutbound((Connection) (Object) this, packet);
+        if (PacketCapture.onOutbound((Connection) (Object) this, packet, listener, flush)) ci.cancel();
     }
 }
