@@ -15,6 +15,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Nano112/panel-lib
+          ref: c07edcf8558dad5862724ff2297b90db063c62f4 # panel-lib 0.1.4
           path: panel-lib
       - uses: actions/setup-java@v4
         with:
@@ -29,7 +30,13 @@ jobs:
       - name: Build MC-Inspector, every Minecraft version (+ tests)
         working-directory: MC-Inspector
         run: ./gradlew :fabric:buildAllVersions --no-daemon
+      - name: Validate installable JARs and generate checksums
+        working-directory: MC-Inspector
+        run: python3 scripts/verify-release.py --checksums
       - uses: actions/upload-artifact@v4
         with:
           name: mc-inspector-jars
-          path: MC-Inspector/build/libs/**/*.jar
+          if-no-files-found: error
+          path: |
+            MC-Inspector/build/libs/**/*.jar
+            MC-Inspector/build/libs/**/SHA256SUMS.txt

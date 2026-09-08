@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.NativeImage
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL30
 import org.lwjgl.system.MemoryUtil
+import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.CompletableFuture
 
@@ -17,7 +18,8 @@ import java.util.concurrent.CompletableFuture
  */
 object FrameCapture {
     class Request(val downscale: Int, val out: Path, val future: CompletableFuture<Result>)
-    data class Result(val width: Int, val height: Int, val downscale: Int)
+    data class Result(val width: Int, val height: Int, val downscale: Int,
+        val epochMs: Long = System.currentTimeMillis(), val tick: Long = dev.harrison.mcinspector.mcp.TickScheduler.tick)
 
     private var pending: Request? = null
 
@@ -31,6 +33,11 @@ object FrameCapture {
             }
             pending = r
         }
+        f.whenComplete { _, _ ->
+            if (f.isCancelled) synchronized(this) {
+                if (pending?.future === f) pending = null
+            }
+        }
         return f
     }
 
@@ -38,10 +45,13 @@ object FrameCapture {
     @JvmStatic
     fun onBeforeSwap() {
         val r = synchronized(this) { pending.also { pending = null } } ?: return
+        if (r.future.isCancelled) return
         try {
-            r.future.complete(readFbo0(r.downscale, r.out))
+            // Cancellation may race a GL read already in progress. Do not leave a late PNG behind.
+            if (!r.future.complete(readFbo0(r.downscale, r.out))) Files.deleteIfExists(r.out)
         } catch (t: Throwable) {
             r.future.completeExceptionally(t)
+            runCatching { Files.deleteIfExists(r.out) }
         }
     }
 

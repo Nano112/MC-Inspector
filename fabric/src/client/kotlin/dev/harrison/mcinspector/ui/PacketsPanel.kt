@@ -61,6 +61,16 @@ object PacketsPanel {
     private const val NOISE = "level_chunk|rotate_head|move_entity|set_entity_motion|client_tick_end|chunk_batch|light_update|set_entity_data|keep_alive|set_time"
 
     fun render() {
+        val captures = dev.harrison.mcinspector.capture.CaptureBundles
+        if (Widgets.secondaryButton(if (captures.isBusy) "Saving bundle…" else "${Icons.DOWNLOAD}  Save capture bundle") && !captures.isBusy) {
+            captures.request(label = markerLabel.get().ifBlank { "effect" },
+                scale = dev.harrison.mcinspector.McInspectorClient.config.screenshotScale)
+        }
+        ImGui.pushTextWrapPos(0f)
+        Widgets.faint("Newest 2000 packets + screenshot in capture-exports/")
+        captures.lastMessage?.let { Widgets.faint(it) }
+        ImGui.popTextWrapPos()
+        ImGui.spacing()
         val held = PacketRules.heldCount()
         Widgets.tabBar("##packets-tabs", listOf(
             "Live" to ::renderLive,
@@ -92,7 +102,7 @@ object PacketsPanel {
         if (Widgets.toggleButton("${Icons.ARROW_UP} OUT", showOut)) showOut = !showOut
         ImGui.sameLine()
         if (Widgets.toggleButton("${Icons.ARROW_DOWN} auto", autoscroll)) autoscroll = !autoscroll
-        ImGui.sameLine()
+        if (ImGui.getWindowWidth() >= 700f) ImGui.sameLine()
         if (Widgets.secondaryButton("${Icons.TAG}  Mark")) {
             val label = markerLabel.get().ifBlank { "mark ${++markerCounter}" }
             store.mark(label, TickScheduler.tick); markerLabel.set("")
@@ -118,10 +128,10 @@ object PacketsPanel {
         Widgets.textField("##filter", filter, "filter type (regex), e.g. chat|move_player", width = -1f)
         updateFilter()
         for ((i, preset) in PRESETS.withIndex()) {
-            if (i > 0) ImGui.sameLine(0f, 4f)
+            if (i > 0 && (i != 3 || ImGui.getWindowWidth() >= 700f)) ImGui.sameLine(0f, 4f)
             if (Widgets.toggleButton(preset.first, filter.get() == preset.second)) filter.set(if (filter.get() == preset.second) "" else preset.second)
         }
-        ImGui.sameLine(0f, 4f)
+        if (ImGui.getWindowWidth() >= 700f) ImGui.sameLine(0f, 4f)
         if (Widgets.toggleButton("deep", deep)) deep = !deep
         if (ImGui.isItemHovered()) ImGui.setTooltip("Also match the regex against decoded fields (slower)")
         ImGui.sameLine(0f, 4f)

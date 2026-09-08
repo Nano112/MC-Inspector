@@ -34,6 +34,7 @@ fun schema(vararg props: Pair<String, JsonObject>, required: List<String> = empt
 // ---- argument helpers -------------------------------------------------------
 
 fun JsonObject.str(key: String): String? = get(key)?.takeUnless { it.isJsonNull }?.asString
+fun JsonObject.long(key: String): Long? = get(key)?.takeUnless { it.isJsonNull }?.asLong
 fun JsonObject.int(key: String): Int? = get(key)?.takeUnless { it.isJsonNull }?.asInt
 fun JsonObject.dbl(key: String): Double? = get(key)?.takeUnless { it.isJsonNull }?.asDouble
 fun JsonObject.bool(key: String): Boolean? = get(key)?.takeUnless { it.isJsonNull }?.asBoolean

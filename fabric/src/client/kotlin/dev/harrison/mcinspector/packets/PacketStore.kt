@@ -50,6 +50,23 @@ class PacketStore(capacity: Int = 5000, retain: Int = 1000) {
         }, "mcinspector-packet-materialiser").apply { isDaemon = true; priority = Thread.MIN_PRIORITY }.start()
     }
 
+    data class ExportSnapshot(
+        val records: List<PacketRecord>, val buffered: Int, val totalSeen: Long,
+        val evicted: Long, val omittedByLimit: Int, val paused: Boolean,
+        val serverSide: Boolean, val exclusions: List<String>, val sinceId: Long,
+    )
+
+    /** Freeze buffer membership and counters together; file IO/decoding happens after releasing the lock. */
+    fun snapshotForExport(sinceId: Long = 0, limit: Int = 2000): ExportSnapshot {
+        require(sinceId >= 0 && limit in 1..10_000)
+        return synchronized(lock) {
+            val selected = ring.filter { it.id > sinceId }.sortedBy { it.id }
+            ExportSnapshot(selected.takeLast(limit), ring.size, totalSeen, dropped,
+                (selected.size - limit).coerceAtLeast(0), paused, captureServerSide,
+                excludes.map { it.pattern }, sinceId)
+        }
+    }
+
     fun nextId(): Long = ids.incrementAndGet()
 
     /** Change the rolling window size; trims immediately if smaller. */

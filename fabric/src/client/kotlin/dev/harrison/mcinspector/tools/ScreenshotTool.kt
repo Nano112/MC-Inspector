@@ -31,29 +31,37 @@ class ScreenshotTool(private val cfg: InspectorConfig) : Tool {
     )
 
     override fun call(args: JsonObject): ToolResult {
-        val scale = (args.dbl("scale") ?: cfg.screenshotScale).coerceIn(0.05, 1.0)
+        check(!Minecraft.getInstance().isSameThread) {
+            "Call screenshot directly through MCP, or use exec_script with thread=background"
+        }
+        val scale = (args.dbl("scale") ?: cfg.screenshotScale).coerceIn(0.1, 1.0)
         val downscale = max(1, (1.0 / scale).roundToInt())
         val tmp = Files.createTempFile("mcinspector-shot", ".png")
         // Captured from FBO 0 right before the buffer swap (PresentCaptureMixin) so overlays drawn at
         // present time (panel-lib's ImGui) are included. Fulfilled on the render thread on the next frame.
         val future = FrameCapture.request(downscale, tmp)
-        val r = try {
-            future.get(15, TimeUnit.SECONDS)
-        } catch (e: ExecutionException) { throw e.cause ?: e }
-        catch (e: TimeoutException) { throw IllegalStateException("frame capture never completed (is the game rendering?)") }
-        val meta = RenderThread.run {
-            val mc = Minecraft.getInstance()
-            val win = mc.window
-            obj {
-                "width" to r.width; "height" to r.height; "downscale" to r.downscale
-                "mouseScale" to r.downscale / InputInjector.pixelRatio()
-                "mouseWidth" to win.screenWidth; "mouseHeight" to win.screenHeight
-                "framebufferWidth" to win.width; "framebufferHeight" to win.height; "guiScale" to win.guiScale
-                "screen" to Compat.screen()?.javaClass?.simpleName
+        try {
+            val r = try {
+                future.get(15, TimeUnit.SECONDS)
+            } catch (e: ExecutionException) { throw e.cause ?: e }
+            catch (e: TimeoutException) { throw IllegalStateException("frame capture never completed (is the game rendering?)") }
+            val meta = RenderThread.run {
+                val mc = Minecraft.getInstance()
+                val win = mc.window
+                obj {
+                    "epochMs" to r.epochMs; "tick" to r.tick
+                    "width" to r.width; "height" to r.height; "downscale" to r.downscale
+                    "mouseScale" to r.downscale / InputInjector.pixelRatio()
+                    "mouseWidth" to win.screenWidth; "mouseHeight" to win.screenHeight
+                    "framebufferWidth" to win.width; "framebufferHeight" to win.height; "guiScale" to win.guiScale
+                    "screen" to Compat.screen()?.javaClass?.simpleName
+                }
             }
+            val bytes = Files.readAllBytes(tmp)
+            return ToolResult.image(Base64.getEncoder().encodeToString(bytes), meta)
+        } finally {
+            future.cancel(false)
+            Files.deleteIfExists(tmp)
         }
-        val bytes = Files.readAllBytes(tmp)
-        Files.deleteIfExists(tmp)
-        return ToolResult.image(Base64.getEncoder().encodeToString(bytes), meta)
     }
 }

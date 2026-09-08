@@ -7,6 +7,15 @@ import net.minecraft.client.gui.screens.Screen
 object Compat {
     private val mc get() = Minecraft.getInstance()
 
+    /** 26.2 split the in-world HUD from Gui's screen/overlay management. */
+    fun overlayMessage(message: net.minecraft.network.chat.Component) {
+        //? if >=26.2 {
+        /*mc.gui.hud.setOverlayMessage(message, false)
+        *///?} else {
+        mc.gui.setOverlayMessage(message, false)
+        //?}
+    }
+
     /** The open screen (menu) or null. 26.2 moved screen management from Minecraft onto Gui. */
     fun screen(): Screen? {
         //? if >=26.2 {

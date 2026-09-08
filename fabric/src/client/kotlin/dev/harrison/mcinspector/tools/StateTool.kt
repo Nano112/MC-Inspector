@@ -15,7 +15,9 @@ class StateTool : Tool {
     override val description = "Snapshot of client state: current screen, player position/rotation/health, server, fps, window size, gui scale, whether the mouse is grabbed (in-world look mode)."
     override val inputSchema = schema()
 
-    override fun call(args: JsonObject): ToolResult = ToolResult.json(RenderThread.run {
+    override fun call(args: JsonObject): ToolResult = ToolResult.json(snapshot())
+
+    fun snapshot(): JsonObject = RenderThread.run {
         val mc = Minecraft.getInstance()
         val win = mc.window
         val p = mc.player
@@ -57,5 +59,5 @@ class StateTool : Tool {
                 "mouseX" to mc.mouseHandler.xpos(); "mouseY" to mc.mouseHandler.ypos()
             }
         }
-    })
+    }
 }

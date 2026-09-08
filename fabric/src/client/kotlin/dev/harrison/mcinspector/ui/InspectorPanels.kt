@@ -19,8 +19,9 @@ object InspectorPanels : PanelLibEntrypoint {
 
     /** Action-bar message (the small text above the hotbar). */
     private fun toast(msg: String) {
-        val mc = net.minecraft.client.Minecraft.getInstance()
-        mc.gui.setOverlayMessage(net.minecraft.network.chat.Component.literal("[MC-Inspector] $msg"), false)
+        dev.harrison.mcinspector.compat.Compat.overlayMessage(
+            net.minecraft.network.chat.Component.literal("[MC-Inspector] $msg")
+        )
         McInspectorClient.LOGGER.info("[MCInspector] {}", msg)
     }
 

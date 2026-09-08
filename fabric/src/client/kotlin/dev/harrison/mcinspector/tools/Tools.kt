@@ -8,7 +8,7 @@ import dev.harrison.mcinspector.mcp.ToolRegistry
 object Tools {
     fun registerAll(reg: ToolRegistry, cfg: InspectorConfig, logs: LogRingBuffer) {
         // observe
-        reg.register(ScreenshotTool(cfg), StateTool(), LogsTool(logs), ModsTool())
+        reg.register(ScreenshotTool(cfg), CaptureBundleTool(cfg), StateTool(), LogsTool(logs), ModsTool())
         // raw input
         reg.register(PressKeyTool(), HoldKeyTool(), ReleaseKeyTool(), TypeTextTool(), MouseMoveTool(), MouseClickTool(), MouseScrollTool())
         // menus

@@ -50,6 +50,9 @@ object McInspectorClient : ClientModInitializer {
         } catch (t: Throwable) {
             LOGGER.error("[MCInspector] failed to start MCP server on port {}", config.port, t)
         }
-        ClientLifecycleEvents.CLIENT_STOPPING.register { server?.stop() }
+        ClientLifecycleEvents.CLIENT_STOPPING.register {
+            dev.harrison.mcinspector.capture.CaptureBundles.shutdown()
+            server?.stop()
+        }
     }
 }
