@@ -32,6 +32,7 @@ capture does not reveal a server's source code or prove its internal implementat
 
 ## Runtime follow-up
 
-Automated clicks on docked controls were intermittent during resize/focus transitions in the
-macOS development client. Investigate input settling and game/overlay focus with panel-lib.
-Direct MCP packet and capture-bundle tools worked independently of those UI clicks.
+The overlay click/focus issue found during the first release was fixed in MC-Inspector 0.1.1
+with panel-lib 0.1.5. Cursor events now reach ImGui before hover/capture is calculated.
+The regression tests reject the old ordering; live 26.2 checks cover both Inspector and
+Schematio dropdowns after Escape.

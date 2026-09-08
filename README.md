@@ -28,7 +28,7 @@ Minecraft 1.21.8 – 1.21.11, 26.1, 26.2 · Fabric · Kotlin · MIT
 ## Install
 
 Drop the jar for your Minecraft version from [Releases](https://github.com/Nano112/MC-Inspector/releases) into
-`mods/` — panel-lib **0.1.4** and the JS engine are bundled. Requires Fabric API for your Minecraft version
+`mods/` — panel-lib **0.1.5** and the JS engine are bundled. Requires Fabric API for your Minecraft version
 and Fabric Language Kotlin **1.13.12 or newer**. Use Java **21+** for Minecraft 1.21.x and **25+** for 26.x.
 Each release includes `SHA256SUMS.txt` for verifying the downloads.
 
@@ -69,7 +69,7 @@ scripts/refresh-panellib.sh                     # after changing ../panel-lib (e
 
 The game dir is `fabric/run`. panel-lib is resolved from mavenLocal (`../panel-lib` → `publishToMavenLocal`) or
 GitHub Packages; CI pins the panel-lib source revision next to this repo and builds it first.
-For a fresh checkout, clone panel-lib at `c07edcf8558dad5862724ff2297b90db063c62f4` (0.1.4) and run
+For a fresh checkout, clone panel-lib at `182ae13192216f21094377f0756734ae45bfe9c5` (0.1.5) and run
 `./gradlew publishToMavenLocal` there before building MC-Inspector.
 Run `python3 scripts/verify-release.py --checksums` after building all versions to validate the six
 installable JARs and their bundled dependencies.
