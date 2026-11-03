@@ -6,6 +6,7 @@
   "client": [
     "ConnectionInvoker",
     "ConnectionMixin",
+    "ImGuiItemsMixin",
     "KeyboardHandlerAccessor",
     "MinecraftWindowActiveMixin",
     "MouseGrabMixin",

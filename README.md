@@ -8,7 +8,7 @@ Minecraft 1.21.8 – 1.21.11, 26.1, 26.2 · Fabric · Kotlin · MIT
 
 ## What you get
 
-- **MCP host** on `http://127.0.0.1:38271/mcp` (loopback only) with 38 tools: `screenshot` (what's on screen,
+- **MCP host** on `http://127.0.0.1:38271/mcp` (loopback only) with 40 tools: `screenshot` (what's on screen,
   overlays included), `get_state`, `read_logs`, keyboard/mouse injection, vanilla-menu helpers
   (`list_widgets`, `click_widget`, `set_text_field`), `run_command`, `connect_server`, `run_sequence` (many steps,
   one call, with `waitFor`), `packets_*`, and `exec_script` (JavaScript inside the client).
@@ -52,9 +52,15 @@ Real captures from MC-Inspector connected to a local Hardwired development serve
 claude mcp add --transport http mcinspector http://127.0.0.1:38271/mcp   # or use this repo's .mcp.json
 ```
 
-Typical loop: `screenshot` → `list_widgets` / `click_widget` for menus, `press_key` / `mouse_click` in-world
+Typical loop: `screenshot` → `list_widgets` / `click_widget` for vanilla menus, `imgui_items` / `imgui_click` for
+ImGui overlays (panel-lib panels of any mod, addressed by label), `press_key` / `mouse_click` in-world
 (`mouse_click` settles two ticks after moving so ImGui can claim the click), `read_logs` to verify, `run_sequence`
 to batch a whole flow (e.g. navigate menus → load world → screenshot).
+
+`imgui_click` finds the item in the frame ImGui just drew, hovers it for a few frames, then presses and releases in
+separate frames, like a person. It records items by hooking imgui-java's widget calls, so it needs no help from the
+mod that draws them. Use `"##id"` labels to match an item whose visible text changes, and `hover: true` for menus that
+open on hover.
 
 ## Develop
 

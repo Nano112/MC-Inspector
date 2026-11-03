@@ -11,6 +11,8 @@ object Tools {
         reg.register(ScreenshotTool(cfg), CaptureBundleTool(cfg), StateTool(), LogsTool(logs), ModsTool())
         // raw input
         reg.register(PressKeyTool(), HoldKeyTool(), ReleaseKeyTool(), TypeTextTool(), MouseMoveTool(), MouseClickTool(), MouseScrollTool())
+        // ImGui overlays (panel-lib, any mod)
+        reg.register(ImGuiItemsTool(), ImGuiClickTool())
         // menus
         reg.register(GetScreenTool(), ListWidgetsTool(), ClickWidgetTool(), SetTextFieldTool(), OpenScreenTool(), CloseScreenTool())
         // world / server
